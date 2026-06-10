@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
+apk/
+BCK/
+admin/
+samples/
 # dependencies
 node_modules/
 
@@ -35,6 +38,8 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+app-example
 
 # generated native folders
 /ios
