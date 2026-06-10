@@ -8,7 +8,8 @@
     "scheme": "ar",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.line.ar"
     },
     "android": {
       "adaptiveIcon": {
@@ -53,8 +54,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0ae5958f-9413-4874-a037-175b92f1cf53"
+        "projectId": "8bb1226c-4b9d-4475-8f79-c37fa641e4fb"
       }
-    }
+    },
+    "owner": "l-i-n-e"
   }
 }
