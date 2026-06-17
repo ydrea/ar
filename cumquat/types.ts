@@ -1,3 +1,4 @@
+// cumquat/types.ts
 export type SensorSnapshot = {
   lat: number;
   lon: number;
@@ -24,8 +25,19 @@ export type Vec3 = {
   y: number;
   z: number;
 };
+
 export type ScreenPosition = {
   x: number;
   y: number;
   visible: boolean;
+  clippedByDistance?: 'min' | 'max' | null;  // Add this
+  depth?: number;  // Add depth for debugging
+};
+
+export type ProjectedPOI = {
+  id: number;
+  name: string;
+  distance: number;
+  screenPos: ScreenPosition;
+  rawPos: Vec3;
 };

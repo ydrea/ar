@@ -1,8 +1,30 @@
-import { CameraView as ARMCamera, useCameraPermissions } from "expo-camera";
+// ui/CameraView.tsx
+import {
+  CameraView as ARMCamera,
+  useCameraPermissions,
+  CameraType,
+} from "expo-camera";
 import { StyleSheet, Text, View } from "react-native";
 
-export function CameraView() {
+interface CameraViewProps {
+  facing?: CameraType;
+  mode?: "picture" | "video";
+  zoom?: number;
+  onCameraReady?: () => void;
+  onMountError?: (error: any) => void;
+  style?: any;
+}
+
+export function CameraView({
+  facing = "back",
+  mode = "video",
+  zoom = 0,
+  onCameraReady,
+  onMountError,
+  style,
+}: CameraViewProps) {
   const [permission, requestPermission] = useCameraPermissions();
+
   if (!permission) {
     return (
       <View style={styles.container}>
@@ -19,7 +41,16 @@ export function CameraView() {
     );
   }
 
-  return <ARMCamera style={styles.camera} facing="back" mode="video" />;
+  return (
+    <ARMCamera
+      style={[styles.camera, style]}
+      facing={facing}
+      mode={mode}
+      zoom={zoom}
+      onCameraReady={onCameraReady}
+      onMountError={onMountError}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

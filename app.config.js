@@ -20,7 +20,13 @@ export default ({ config }) => {
       "expo-asset",
       "expo-screen-orientation",
       "expo-web-browser",
-      "expo-camera",
+      [
+        "expo-camera",
+        {
+          cameraPermission:
+            "Allow $(PRODUCT_NAME) to access your camera for AR features",
+        },
+      ],
       [
         "expo-location",
         {

@@ -203,118 +203,101 @@ function geoToENU(
 
 // ============ PROJECTION ============
 
-function projectToScreen(
-  cameraPos: Vec3,
-  width: number,
-  height: number,
-  fov: number,
-): ScreenPosition {
-  const depth = -cameraPos.z;
+// function projectToScreen(
+//   cameraPos: Vec3,
+//   width: number,
+//   height: number,
+//   fov: number
+// ): ScreenPosition {
+//   const depth = -cameraPos.z;
 
-  if (depth <= 0.1) {
-    return { x: 0, y: 0, visible: false };
-  }
+//   if (depth <= 0.1) {
+//     return { x: 0, y: 0, visible: false };
+//   }
 
-  // Swap X and Y with negation - from working quat.js
-  const correctedX = -cameraPos.y;
-  const correctedY = -cameraPos.x;
+//   // Swap X and Y with negation - from working quat.js
+//   const correctedX = -cameraPos.y;
+//   const correctedY = -cameraPos.x;
 
-  // FOV in degrees, convert to radians
-  const fovRad = (fov * Math.PI) / 180;
+//   // FOV in degrees, convert to radians
+//   const fovRad = fov * Math.PI / 180;
 
-  // Calculate focal length correctly
-  // For perspective projection: screen_coord = (camera_coord / depth) * focal_length
-  // focal_length = (screen_width/2) / tan(fov/2)
-  const focalLength = width / 2 / Math.tan(fovRad / 2);
+//   // Calculate focal length correctly
+//   // For perspective projection: screen_coord = (camera_coord / depth) * focal_length
+//   // focal_length = (screen_width/2) / tan(fov/2)
+//   const focalLength = (width / 2) / Math.tan(fovRad / 2);
 
-  // Project to NDC then to screen coordinates
-  const screenX = width / 2 + (correctedX / depth) * focalLength;
-  const screenY = height / 2 - (correctedY / depth) * focalLength; // Y is inverted in screen space
+//   // Project to NDC then to screen coordinates
+//   const screenX = width / 2 + (correctedX / depth) * focalLength;
+//   const screenY = height / 2 - (correctedY / depth) * focalLength;  // Y is inverted in screen space
 
-  // Check if within screen bounds (with margin)
-  const margin = 200;
-  const visible =
-    screenX >= -margin &&
-    screenX <= width + margin &&
-    screenY >= -margin &&
-    screenY <= height + margin;
+//   // Check if within screen bounds (with margin)
+//   const margin = 200;
+//   const visible = screenX >= -margin && screenX <= width + margin &&
+//                   screenY >= -margin && screenY <= height + margin;
 
-  // Debug: log one POI each frame
-  if (Math.random() < 0.01) {
-    Tlog(
-      `📐 depth=${depth.toFixed(1)}m, corr=(${correctedX.toFixed(0)}, ${correctedY.toFixed(0)}), screen=(${screenX.toFixed(0)}, ${screenY.toFixed(0)}), visible=${visible}`,
+//   // Debug: log one POI each frame
+//   if (Math.random() < 0.01) {
+//     Tlog(`📐 depth=${depth.toFixed(1)}m, corr=(${correctedX.toFixed(0)}, ${correctedY.toFixed(0)}), screen=(${screenX.toFixed(0)}, ${screenY.toFixed(0)}), visible=${visible}`);
+//   }
+
+//   return { x: screenX, y: screenY, visible };
+// }
+
+// Add to your sensors.ts
+function filterVisiblePOIs(
+  userPos: SensorSnapshot,
+  pois: Array<{ lat: number; lon: number; alt: number }>,
+  minDistance: number,
+  maxDistance: number,
+) {
+  return pois.filter((poi) => {
+    const enu = geoToENU(
+      userPos.lat,
+      userPos.lon,
+      userPos.elevation,
+      poi.lat,
+      poi.lon,
+      poi.alt,
     );
-  }
 
-  return { x: screenX, y: screenY, visible };
+    const distance = Math.hypot(enu.x, enu.y, enu.z);
+    return distance >= minDistance && distance <= maxDistance;
+  });
 }
 
-// ============ NEW: PROJECTION WITH DISTANCE CLIPPING ============
-
-/**
- * Project a camera-space position to screen coordinates with distance clipping awareness
- *
- * @param cameraPos - Position in camera space (from rotateVector)
- * @param width - Screen width in pixels
- * @param height - Screen height in pixels
- * @param fov - Field of view in degrees
- * @param minDistance - Minimum visible distance (meters)
- * @param maxDistance - Maximum visible distance (meters)
- * @returns ScreenPosition with clipping information
- */
-function projectToScreenWithClipping(
+// Enhanced projectToScreen that respects distances
+function projectToScreenWithLimits(
   cameraPos: Vec3,
   width: number,
   height: number,
   fov: number,
   minDistance: number,
   maxDistance: number,
-): ScreenPosition {
+): ScreenPosition & { clippedByDistance: boolean } {
   const depth = -cameraPos.z;
 
-  // Check distance clipping FIRST
+  // Distance-based clipping
   if (depth < minDistance) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clippedByDistance: "min",
-      depth: depth,
-    };
+    return { x: 0, y: 0, visible: false, clippedByDistance: "min" };
   }
-
   if (depth > maxDistance) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clippedByDistance: "max",
-      depth: depth,
-    };
+    return { x: 0, y: 0, visible: false, clippedByDistance: "max" };
   }
 
-  // Check if behind camera
+  // Your existing projection logic
   if (depth <= 0.1) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clippedByDistance: null,
-      depth: depth,
-    };
+    return { x: 0, y: 0, visible: false, clippedByDistance: null };
   }
 
-  // Project to screen (same logic as projectToScreen)
   const correctedX = -cameraPos.y;
   const correctedY = -cameraPos.x;
-
   const fovRad = (fov * Math.PI) / 180;
   const focalLength = width / 2 / Math.tan(fovRad / 2);
 
   const screenX = width / 2 + (correctedX / depth) * focalLength;
   const screenY = height / 2 - (correctedY / depth) * focalLength;
 
-  // Check screen bounds
   const margin = 200;
   const visible =
     screenX >= -margin &&
@@ -322,22 +305,9 @@ function projectToScreenWithClipping(
     screenY >= -margin &&
     screenY <= height + margin;
 
-  return {
-    x: screenX,
-    y: screenY,
-    visible: visible,
-    clippedByDistance: null,
-    depth: depth,
-  };
+  return { x: screenX, y: screenY, visible, clippedByDistance: null };
 }
 
 // ============ EXPORTS ============
 
-export {
-  sensorHub,
-  geoToENU,
-  projectToScreen,
-  projectToScreenWithClipping, // ADD THIS EXPORT
-  inverse,
-  rotateVector,
-};
+export { sensorHub, geoToENU, projectToScreen, inverse, rotateVector };

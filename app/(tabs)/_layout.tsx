@@ -68,9 +68,26 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="arView"
+        name="quat-svg"
         options={{
-          title: "AR View",
+          title: "-SVG",
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{
+                ios: "chevron.left.forwardslash.chevron.right",
+                android: "code",
+                web: "code",
+              }}
+              tintColor={color}
+              size={28}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="quat+svg"
+        options={{
+          title: "+SVG",
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{
