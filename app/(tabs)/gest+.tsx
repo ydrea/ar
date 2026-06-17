@@ -1,5 +1,4 @@
-// app/gest.tsx - Updated AR View with fixed imports
-// app/gest.tsx - AR View with full pipeline integration
+// app/gest+.tsx - AR View with full commands integration
 import React, { useEffect, useState, useRef } from "react";
 import {
   View,
@@ -379,7 +378,7 @@ export default function ARView() {
 
           {/* Controls */}
           <View style={styles.controls}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.controlButton}
               onPress={() =>
                 setCameraFacing((current) =>
@@ -388,7 +387,7 @@ export default function ARView() {
               }
             >
               <Text style={styles.controlButtonText}>⟳</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <TouchableOpacity
               style={styles.controlButton}
