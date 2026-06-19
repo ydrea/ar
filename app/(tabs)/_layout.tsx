@@ -50,9 +50,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="quat+"
+        name="gest+"
         options={{
-          title: "Quat+",
+          title: "AR +",
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{
@@ -67,7 +67,7 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="quat-svg"
         options={{
           title: "-SVG",
@@ -83,8 +83,8 @@ export default function TabLayout() {
             />
           ),
         }}
-      />
-      <Tabs.Screen
+      /> */}
+      {/* <Tabs.Screen
         name="quat+svg"
         options={{
           title: "+SVG",
@@ -97,10 +97,10 @@ export default function TabLayout() {
               }}
               tintColor={color}
               size={28}
-            />
-          ),
+            /> */}
+      {/* ),
         }}
-      />
+      /> */}
 
       <Tabs.Screen
         name="help"

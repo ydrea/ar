@@ -39,13 +39,44 @@ import { FOVVisualFeedback } from "@/ui/FOVisual";
 
 const { width, height } = Dimensions.get("window");
 
-// Sample POI data
+// prettier-ignore
 const POIS = [
-  { id: 1, name: "Tresnjevacki trg", lat: 45.8, lon: 15.9667, alt: 1 },
-  { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.967, alt: 1 },
-  { id: 3, name: "Sljeme", lat: 45.8994, lon: 15.9448, alt: 1033 },
-  { id: 4, name: "Medvedgrad", lat: 45.8833, lon: 15.95, alt: 579 },
-];
+  { id: 1, name: "Tresnjevacki trg Market", lat: 45.8000, lon: 15.9667, alt: 1 },
+    { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.9670, alt: 1 },
+    { id: 3, name: "Pekara Mlinar", lat: 45.8005, lon: 15.9660, alt: 1 },
+    { id: 4, name: "Konoba Tresnjevka", lat: 45.7990, lon: 15.9675, alt: 1 },
+    { id: 5, name: "Park Maksimir", lat: 45.8100, lon: 15.9800, alt: 1 },
+    { id: 6, name: "Trg Njegoševa", lat: 45.7980, lon: 15.9650, alt: 1 },
+    { id: 7, name: "Konzum Superstore", lat: 45.8010, lon: 15.9680, alt: 1 },
+    { id: 8, name: "Ljekarna Tresnjevka", lat: 45.7985, lon: 15.9645, alt: 1 },
+    { id: 9, name: "Osnovna škola Tresnjevka", lat: 45.8020, lon: 15.9690, alt: 1 },
+    { id: 10, name: "Crkva sv.Antuna", lat: 45.7975, lon: 15.9630, alt: 1 },
+    { id: 11, name: "Pivnica Medvedgrad", lat: 45.8030, lon: 15.9700, alt: 1 },
+    { id: 12, name: "Bistrolana Tresnjevka", lat: 45.7990, lon: 15.9685, alt: 1 },
+    { id: 13, name: "Frizerski salon Ana", lat: 45.8000, lon: 15.9655, alt: 1 },
+    { id: 14, name: "Automehaničar Drop", lat: 45.7970, lon: 15.9670, alt: 1 },
+    { id: 15, name: "Vrtuljak Park", lat: 45.8015, lon: 15.9640, alt: 1 },
+    { id: 16, name: "Trg Kvatrić", lat: 45.7980, lon: 15.9695, alt: 1 },
+    { id: 17, name: "Poslovni centar Tresnjevka", lat: 45.8015, lon: 15.9695, alt: 1 },
+    { id: 18, name: "Knjižara Algoritam", lat: 45.7980, lon: 15.9665, alt: 1 },
+    { id: 19, name: "Pekara Kruh", lat: 45.8025, lon: 15.9675, alt: 1 },
+    { id: 20, name: "Ljekarna Jambo", lat: 45.7975, lon: 15.9680, alt: 1 },
+    { id: 21, name: "Cibona", lat: 45.803249057020885, lon: 15.96347793271185, alt: 92 },
+    { id: 22, name: "Zagrepčanka", lat: 45.798528643549396, lon: 15.96245585283698, alt: 95 },
+    { id: 23, name: "Vjesnik", lat: 45.793551576662246, lon: 15.959205695046405, alt: 67 },
+    { id: 24, name: "Jelenovac", lat: 45.82741901993836, lon: 15.956039702679561, alt: 135 },
+    { id: 25, name: "Dom sportova", lat: 45.80736039531922, lon: 15.951976431579737, alt: 0 },
+    { id: 26, name: "Sljeme", lat: 45.89946265300375, lon: 15.94482091926767, alt: 1033 },
+    { id: 27, name: "Medvedgrad", lat: 45.89946265300375, lon: 15.94482091926767, alt: 579 },
+    { id: 28, name: "Grmoščica", lat: 45.81692484023739, lon: 15.92419321766124, alt: 239 },
+    { id: 29, name: "Trg Francuske Republike", lat: 45.81050656334719, lon: 15.95553638845962, alt: 0 },
+    { id: 30, name: "Otok ljubavi", lat: 45.779416, lon: 15.93489, alt: 7 },
+    { id: 31, name: "Otok veslača", lat: 45.778193, lon: 15.93373, alt: 10 },
+    { id: 32, name: "Otok Trešnjevka", lat: 45.782458, lon: 15.918919, alt: 10 },
+    { id: 33, name: "Otok Univerzijade", lat: 45.784486, lon: 15.914094, alt: 15 },
+    { id: 34, name: "Otok hrvatske mladeži", lat: 45.778619, lon: 15.925837, alt: 14 },
+    { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 }
+  ];
 
 export default function ARView() {
   // Camera
@@ -515,11 +546,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 2,
     overflow: "hidden",
+    opacity: 0.5,
   },
   distanceFill: {
     height: "100%",
     backgroundColor: "#00ffff",
     borderRadius: 2,
+    opacity: 0.2,
   },
   distanceLabels: {
     flexDirection: "row",
