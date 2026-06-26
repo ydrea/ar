@@ -281,10 +281,11 @@ export function ActiveLimitIndicator({
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFill,
+    opacity: 0.5,
   },
   glowOverlay: {
     ...StyleSheet.absoluteFill,
-    opacity: 0,
+    opacity: 0.7,
   },
   topIndicator: {
     position: "absolute",

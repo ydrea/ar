@@ -179,5 +179,6 @@ export function FOVVisualFeedback({
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFill,
+    opacity: 0.5,
   },
 });
