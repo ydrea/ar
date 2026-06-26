@@ -3,6 +3,9 @@ apk/
 BCK/
 admin/
 samples/
+credentials/
+
+credentials.json
 # dependencies
 node_modules/
 

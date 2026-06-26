@@ -155,7 +155,7 @@ const GestureCard = ({
   </Animated.View>
 );
 
-export default function HelpScreen({ onClose }: HelpScreenProps) {
+export default function HelpScreen() {
   const { translate } = useLanguage();
 
   return (
@@ -210,7 +210,9 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
 
           <View style={styles.divider} />
 
-          <Text style={styles.sectionTitle}>{translate("visualFeedbackTitle")}</Text>
+          <Text style={styles.sectionTitle}>
+            {translate("visualFeedbackTitle")}
+          </Text>
 
           <View style={styles.feedbackGrid}>
             <View style={styles.feedbackItem}>
@@ -225,7 +227,9 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
               >
                 <FarIcon color="#2196F3" />
               </View>
-              <Text style={styles.feedbackLabel}>{translate("blueMaxDistance")}</Text>
+              <Text style={styles.feedbackLabel}>
+                {translate("blueMaxDistance")}
+              </Text>
             </View>
 
             <View style={styles.feedbackItem}>
@@ -240,7 +244,9 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
               >
                 <NearIcon color="#4CAF50" />
               </View>
-              <Text style={styles.feedbackLabel}>{translate("greenMinDistance")}</Text>
+              <Text style={styles.feedbackLabel}>
+                {translate("greenMinDistance")}
+              </Text>
             </View>
 
             <View style={styles.feedbackItem}>
@@ -255,7 +261,9 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
               >
                 <ZoomIcon color="#FF9800" />
               </View>
-              <Text style={styles.feedbackLabel}>{translate("orangeZoom")}</Text>
+              <Text style={styles.feedbackLabel}>
+                {translate("orangeZoom")}
+              </Text>
             </View>
 
             <View style={styles.feedbackItem}>
