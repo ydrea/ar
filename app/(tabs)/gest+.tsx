@@ -26,7 +26,7 @@ import {
   rotateVector,
 } from "@/cumquat/sensors";
 import { AR_CONSTANTS } from "@/cumquat/constants";
-import { SensorSnapshot, Vec3 } from "@/cumquat/types";
+import { AROutput, SensorSnapshot, Vec3 } from "@/cumquat/types";
 import {
   ARGestureController,
   GestureMode,
@@ -36,6 +36,7 @@ import { QuickHelpTooltip } from "@/ui/ToolTip";
 import { ActiveLimitIndicator } from "@/ui/ActiveLimitIndicator";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
 import { FOVVisualFeedback } from "@/ui/FOVisual";
+import { AROverlay } from "@/ui/AROverlay";
 
 const { width, height } = Dimensions.get("window");
 
@@ -261,7 +262,21 @@ export default function ARView() {
         screenPos,
       };
     })
+
     .filter((poi) => poi.screenPos.visible);
+
+  // Convert projected POIs to AROutput format
+  const arOutputs: AROutput[] = projectedPOIs.map((poi) => ({
+    id: poi.id,
+    name: poi.name,
+    distance: poi.distance,
+    world: {
+      position: poi.pos,
+      distance: poi.distance,
+      bearing: 0, // Calculate bearing if needed
+    },
+    screen: poi.screenPos,
+  }));
 
   // // Sensor subscription
   // useEffect(() => {
@@ -326,7 +341,10 @@ export default function ARView() {
           />
 
           {/* AR Overlay with projected POIs */}
-          <Svg style={StyleSheet.absoluteFill}>
+
+          <AROverlay arOutputs={arOutputs} screenWidth={width} />
+
+          {/* <Svg style={StyleSheet.absoluteFill}>
             {projectedPOIs.map((poi) => {
               const distanceFactor =
                 1 - (poi.distance - minDistance) / (maxDistance - minDistance);
@@ -375,7 +393,7 @@ export default function ARView() {
                 </React.Fragment>
               );
             })}
-          </Svg>
+          </Svg> */}
 
           {/* Center reticle */}
           <View style={styles.reticle}>

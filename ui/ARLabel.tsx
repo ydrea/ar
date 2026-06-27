@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import Svg, { Circle, Line } from "react-native-svg";
 
 type Props = {
-  id: string;
+  id: string | number;
   name: string;
   world: {
     distance: number;

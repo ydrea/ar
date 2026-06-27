@@ -1,4 +1,4 @@
-// cumquat/gestures/ARGestureController.ts
+// cumquat/gestures/ArGestureController.ts
 import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { Dimensions } from "react-native";

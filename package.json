@@ -44,7 +44,12 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "dev": "EAS_BUILD_PROFILE=development npx expo start --dev-client --clear",
+    "preview": "EAS_BUILD_PROFILE=preview npx expo start --dev-client --clear",
+    "prod": "EAS_BUILD_PROFILE=production npx expo start --dev-client --clear",
+    "open:dev": "adb shell am start -a android.intent.action.VIEW -d 'exp+ar://expo-development-client/?url=http%3A%2F%2F192.168.0.42%3A8081'",
+    "open:preview": "adb shell am start -a android.intent.action.VIEW -d 'exp+ar://expo-development-client/?url=http%3A%2F%2F192.168.0.42%3A8081'",
+    "open:prod": "adb shell am start -a android.intent.action.VIEW -d 'exp+ar://expo-development-client/?url=http%3A%2F%2F192.168.0.42%3A8081'"
   },
   "private": true
 }

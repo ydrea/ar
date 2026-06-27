@@ -30,8 +30,8 @@ export type ScreenPosition = {
   x: number;
   y: number;
   visible: boolean;
-  clippedByDistance?: 'min' | 'max' | null;  // Add this
-  depth?: number;  // Add depth for debugging
+  clippedByDistance?: "min" | "max" | null; // Add this
+  depth?: number; // Add depth for debugging
 };
 
 export type ProjectedPOI = {
@@ -40,4 +40,13 @@ export type ProjectedPOI = {
   distance: number;
   screenPos: ScreenPosition;
   rawPos: Vec3;
+};
+
+// AROutput type for the overlay
+export type AROutput = {
+  id: number;
+  name: string;
+  world: WorldPosition;
+  screen: ScreenPosition;
+  distance: number;
 };
