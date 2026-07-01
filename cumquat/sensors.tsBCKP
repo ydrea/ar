@@ -106,6 +106,10 @@ class SensorHub {
           y: sy * cp * cr - cy * sp * sr,
           z: cy * cp * sr - sy * sp * cr,
         };
+
+        // Log actual values to see if they change
+        // Tlog(`🧭 Raw: yaw=${yaw.toFixed(3)}, pitch=${pitch.toFixed(3)}, roll=${roll.toFixed(3)}`);
+        // Tlog(`🧭 Quat: w=${orientation.w.toFixed(3)}, x=${orientation.x.toFixed(3)}, y=${orientation.y.toFixed(3)}, z=${orientation.z.toFixed(3)}`);
       } else {
         return;
       }
@@ -138,6 +142,7 @@ const sensorHub = new SensorHub();
 
 // ============ GEO MATH ============
 
+// sensors.ts - FIXED geoToENU
 function geoToENU(
   lat1: number,
   lon1: number,
@@ -190,29 +195,10 @@ function geoToENU(
     Math.cos(φ1) * Math.sin(λ1) * dy +
     Math.sin(φ1) * dz;
 
+  // Debug: should be small numbers (meters)
+  // Rlog(`📍 ${lat2},${lon2}: ENU east=${east.toFixed(1)}m, north=${north.toFixed(1)}m, up=${up.toFixed(1)}m`);
+
   return { x: east, y: north, z: up };
-}
-
-// ============ BEARING CALCULATION ============
-
-function calculateBearing(
-  userLat: number,
-  userLon: number,
-  poiLat: number,
-  poiLon: number,
-): number {
-  const φ1 = userLat * DEG2RAD;
-  const φ2 = poiLat * DEG2RAD;
-  const Δλ = (poiLon - userLon) * DEG2RAD;
-
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x =
-    Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-
-  let bearing = Math.atan2(y, x) * RAD2DEG;
-  bearing = (bearing + 360) % 360; // Normalize to 0-360
-
-  return bearing;
 }
 
 // ============ PROJECTION ============
@@ -226,14 +212,7 @@ function projectToScreen(
   const depth = -cameraPos.z;
 
   if (depth <= 0.1) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clipped: true,
-      clippedByDistance: null,
-      depth: depth,
-    };
+    return { x: 0, y: 0, visible: false };
   }
 
   // Swap X and Y with negation - from working quat.js
@@ -260,17 +239,17 @@ function projectToScreen(
     screenY >= -margin &&
     screenY <= height + margin;
 
-  return {
-    x: screenX,
-    y: screenY,
-    visible,
-    clipped: !visible,
-    clippedByDistance: null,
-    depth: depth,
-  };
+  // Debug: log one POI each frame
+  if (Math.random() < 0.01) {
+    Tlog(
+      `📐 depth=${depth.toFixed(1)}m, corr=(${correctedX.toFixed(0)}, ${correctedY.toFixed(0)}), screen=(${screenX.toFixed(0)}, ${screenY.toFixed(0)}), visible=${visible}`,
+    );
+  }
+
+  return { x: screenX, y: screenY, visible };
 }
 
-// ============ PROJECTION WITH DISTANCE CLIPPING ============
+// ============ NEW: PROJECTION WITH DISTANCE CLIPPING ============
 
 /**
  * Project a camera-space position to screen coordinates with distance clipping awareness
@@ -299,7 +278,6 @@ function projectToScreenWithClipping(
       x: 0,
       y: 0,
       visible: false,
-      clipped: true,
       clippedByDistance: "min",
       depth: depth,
     };
@@ -310,7 +288,6 @@ function projectToScreenWithClipping(
       x: 0,
       y: 0,
       visible: false,
-      clipped: true,
       clippedByDistance: "max",
       depth: depth,
     };
@@ -322,7 +299,6 @@ function projectToScreenWithClipping(
       x: 0,
       y: 0,
       visible: false,
-      clipped: true,
       clippedByDistance: null,
       depth: depth,
     };
@@ -350,7 +326,6 @@ function projectToScreenWithClipping(
     x: screenX,
     y: screenY,
     visible: visible,
-    clipped: !visible,
     clippedByDistance: null,
     depth: depth,
   };
@@ -362,8 +337,7 @@ export {
   sensorHub,
   geoToENU,
   projectToScreen,
-  projectToScreenWithClipping,
+  projectToScreenWithClipping, // ADD THIS EXPORT
   inverse,
   rotateVector,
-  calculateBearing,
 };

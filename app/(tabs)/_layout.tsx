@@ -50,9 +50,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="gest+"
+        name="beta"
         options={{
-          title: "AR +",
+          title: "AR Beta",
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{
@@ -68,9 +68,9 @@ export default function TabLayout() {
       />
 
       {/* <Tabs.Screen
-        name="quat-svg"
+        name="gest-"
         options={{
-          title: "-SVG",
+          title: "AR-",
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{
@@ -84,6 +84,7 @@ export default function TabLayout() {
           ),
         }}
       /> */}
+
       {/* <Tabs.Screen
         name="quat+svg"
         options={{

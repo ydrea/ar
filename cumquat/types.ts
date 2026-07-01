@@ -27,6 +27,7 @@ export type Vec3 = {
 };
 
 export type ScreenPosition = {
+  clipped: boolean;
   x: number;
   y: number;
   visible: boolean;

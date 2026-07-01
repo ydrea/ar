@@ -1,9 +1,8 @@
-export default ({ config }) => {
-  const buildProfile = process.env.EAS_BUILD_PROFILE;
+export default () => {
+  const buildProfile = process.env.EAS_BUILD_PROFILE || "development";
 
-  // Determine package name
-  let packageName = "com.line.ar";
-  let appName = "AR";
+  let packageName = "com.line.ar.dev";
+  let appName = "AR (Dev)";
   let iconConfig = {
     icon: "./assets/generated/icon.png",
     android: {
@@ -16,17 +15,17 @@ export default ({ config }) => {
     },
   };
 
-  if (buildProfile === "development") {
-    packageName = "com.line.ar.dev";
-    appName = "AR (Dev)";
+  if (buildProfile === "production") {
+    packageName = "com.line.ar";
+    appName = "AR (Prod)";
     iconConfig = {
-      icon: "./assets/icons/development/icon.png",
+      icon: "./assets/icons/production/icon.png",
       android: {
         adaptiveIcon: {
           backgroundColor: "#E6F4FE",
-          foregroundImage: "./assets/icons/development/android-foreground.png",
-          backgroundImage: "./assets/icons/development/android-background.png",
-          monochromeImage: "./assets/icons/development/android-monochrome.png",
+          foregroundImage: "./assets/icons/production/android-foreground.png",
+          backgroundImage: "./assets/icons/production/android-background.png",
+          monochromeImage: "./assets/icons/production/android-monochrome.png",
         },
       },
     };
@@ -47,12 +46,15 @@ export default ({ config }) => {
   }
 
   return {
-    ...config,
     name: appName,
+    slug: "ar",
+    version: "1.0.0",
+    orientation: "landscape",
     icon: iconConfig.icon,
-    orientation: "landscape", // Override portrait from app.json
+    scheme: "ar",
+    userInterfaceStyle: "automatic",
     ios: {
-      ...config.ios,
+      supportsTablet: true,
       bundleIdentifier: packageName,
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location.",
@@ -61,9 +63,23 @@ export default ({ config }) => {
       },
     },
     android: {
-      ...config.android,
-      package: packageName, // This overrides app.json
+      package: packageName,
       adaptiveIcon: iconConfig.android.adaptiveIcon,
+      predictiveBackGestureEnabled: false,
+      permissions: [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+      ],
+    },
+    web: {
+      bundler: "metro",
+      output: "static",
+      favicon: "./assets/images/favicon.png",
     },
     plugins: [
       "expo-router",
@@ -105,6 +121,16 @@ export default ({ config }) => {
         },
       ],
     ],
+    experiments: {
+      typedRoutes: true,
+    },
+    extra: {
+      router: {},
+      eas: {
+        projectId: "8bb1226c-4b9d-4475-8f79-c37fa641e4fb",
+      },
+    },
+    owner: "l-i-n-e",
     updates: {
       url: "https://u.expo.dev/8bb1226c-4b9d-4475-8f79-c37fa641e4fb",
       fallbackToCacheTimeout: 0,
