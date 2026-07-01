@@ -270,51 +270,52 @@ function projectToScreen(
   };
 }
 
-// ============ PROJECTION WITH DISTANCE CLIPPING ============
-
 /**
- * Project a camera-space position to screen coordinates with distance clipping awareness
+ * Project a camera-space position to screen coordinates with distance clipping
  *
  * @param cameraPos - Position in camera space (from rotateVector)
+ * @param trueDistance - Actual Euclidean distance from user to POI (meters)
  * @param width - Screen width in pixels
  * @param height - Screen height in pixels
  * @param fov - Field of view in degrees
- * @param minDistance - Minimum visible distance (meters)
- * @param maxDistance - Maximum visible distance (meters)
+ * @param minDistance - Minimum visible RADIAL distance (meters)
+ * @param maxDistance - Maximum visible RADIAL distance (meters)
  * @returns ScreenPosition with clipping information
  */
 function projectToScreenWithClipping(
   cameraPos: Vec3,
+  trueDistance: number, // ← NEW: pass true distance separately
   width: number,
   height: number,
   fov: number,
   minDistance: number,
   maxDistance: number,
 ): ScreenPosition {
-  const depth = -cameraPos.z;
-
-  // Check distance clipping FIRST
-  if (depth < minDistance) {
+  // Use TRUE DISTANCE for radial clipping
+  if (trueDistance < minDistance) {
     return {
       x: 0,
       y: 0,
       visible: false,
       clipped: true,
       clippedByDistance: "min",
-      depth: depth,
+      depth: -cameraPos.z,
     };
   }
 
-  if (depth > maxDistance) {
+  if (trueDistance > maxDistance) {
     return {
       x: 0,
       y: 0,
       visible: false,
       clipped: true,
       clippedByDistance: "max",
-      depth: depth,
+      depth: -cameraPos.z,
     };
   }
+
+  // Use PROJECTION DEPTH for perspective projection
+  const depth = -cameraPos.z;
 
   // Check if behind camera
   if (depth <= 0.1) {

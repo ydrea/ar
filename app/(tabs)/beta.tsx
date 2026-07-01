@@ -34,10 +34,10 @@ const { width, height } = Dimensions.get("window");
 
 // Your POIs - keep as is
 const POIS = [
-  { id: 1, name: "Tresnjevacki trg Market", lat: 45.8000, lon: 15.9667, alt: 1 },
-  { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.9670, alt: 1 },
+  { id: 1, name: "Tresnjevacki trg Market", lat: 45.8, lon: 15.9667, alt: 1 },
+  { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.967, alt: 1 },
   // ... rest of your POIs
-  { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 }
+  { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 },
 ];
 
 // Helper: Normalize angle to 0-360
@@ -114,9 +114,10 @@ export default function ARBetaView() {
         if (isRB) {
           setIsRubberBanding(true);
           setActiveLimit("fov");
-          const excess = newFOV < AR_CONSTANTS.FOV.MIN
-            ? AR_CONSTANTS.FOV.MIN - newFOV
-            : newFOV - AR_CONSTANTS.FOV.MAX;
+          const excess =
+            newFOV < AR_CONSTANTS.FOV.MIN
+              ? AR_CONSTANTS.FOV.MIN - newFOV
+              : newFOV - AR_CONSTANTS.FOV.MAX;
           setRubberBandIntensity(Math.min(1, excess / 20));
         }
       },
@@ -186,13 +187,13 @@ export default function ARBetaView() {
 
       const rotatedPos = rotateVector(enuPos, userLocation.orientation);
       const distance = Math.hypot(rotatedPos.x, rotatedPos.y, rotatedPos.z);
-      
+
       // Calculate bearing from user to POI
       const poiBearing = calculateBearing(
         userLocation.lat,
         userLocation.lon,
         poi.lat,
-        poi.lon
+        poi.lon,
       );
 
       return {
@@ -210,8 +211,12 @@ export default function ARBetaView() {
   // Process POIs with clipping
   const projectedPOIs = poiPositions
     .map((poi) => {
+      // Calculate true distance once
+      const trueDistance = poi.distance; // computed with Math.hypot
+
       const screenPos = projectToScreenWithClipping(
-        poi.pos,
+        poi.pos, // Camera-space position
+        trueDistance, // ← RADIAL DISTANCE for clipping
         width,
         height,
         fov,
@@ -223,25 +228,23 @@ export default function ARBetaView() {
         ...poi,
         screenPos,
         isDistanceClipped: screenPos.clippedByDistance !== null,
-        isOffscreen: !screenPos.visible && screenPos.clippedByDistance === null,
+        isOffscreen: screenPos.clipped && screenPos.clippedByDistance === null,
         isVisible: screenPos.visible && screenPos.clippedByDistance === null,
       };
     })
     .filter((poi) => {
-      // Only show POIs that are within distance range
-      // If clipped by distance, we still keep for directional triangles
-      return poi.screenPos.clippedByDistance === null || 
-             poi.screenPos.clippedByDistance === "max";
-      // Actually, we want to show triangles for max-clipped POIs
-      // but not for min-clipped (too close) or behind camera
+      // Keep POIs that are:
+      // 1. Visible (on screen, in range)
+      // 2. Offscreen but in range (for triangles)
+      // 3. Clipped by distance (for triangles)
+      return poi.isVisible || poi.isOffscreen || poi.isDistanceClipped;
     });
-
   // Sensor subscription - UPDATE this to track orientation continuously
   useEffect(() => {
     if (!isReady) return;
 
     let lastLocationUpdate = 0;
-    
+
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
@@ -249,23 +252,29 @@ export default function ARBetaView() {
       // Always update orientation, but only update location when changed
       const now = Date.now();
       const isLocationUpdate = now - lastLocationUpdate > 500;
-      
+
       if (isLocationUpdate) {
         // Check if location changed significantly
         const last = userLocation;
-        if (!last || 
-            Math.abs(last.lat - snapshot.lat) > 0.000001 ||
-            Math.abs(last.lon - snapshot.lon) > 0.000001) {
+        if (
+          !last ||
+          Math.abs(last.lat - snapshot.lat) > 0.000001 ||
+          Math.abs(last.lon - snapshot.lon) > 0.000001
+        ) {
           setUserLocation(snapshot);
           lastLocationUpdate = now;
         }
       } else {
         // Just update orientation without changing location
-        setUserLocation(prev => prev ? {
-          ...prev,
-          orientation: snapshot.orientation,
-          timestamp: snapshot.timestamp
-        } : snapshot);
+        setUserLocation((prev) =>
+          prev
+            ? {
+                ...prev,
+                orientation: snapshot.orientation,
+                timestamp: snapshot.timestamp,
+              }
+            : snapshot,
+        );
       }
     }, 50); // Faster updates for smooth orientation
 
@@ -276,11 +285,11 @@ export default function ARBetaView() {
 
   // Get bearing for HUD (average bearing of visible POIs)
   const averageBearing = React.useMemo(() => {
-    const visiblePOIs = projectedPOIs.filter(p => p.isVisible);
+    const visiblePOIs = projectedPOIs.filter((p) => p.isVisible);
     if (visiblePOIs.length === 0) return 0;
-    
+
     let sum = 0;
-    visiblePOIs.forEach(p => {
+    visiblePOIs.forEach((p) => {
       // Convert to radians for circular mean if needed
       sum += p.bearing;
     });
@@ -307,19 +316,20 @@ export default function ARBetaView() {
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
             {projectedPOIs.map((poi) => {
               const { x, y } = poi.screenPos;
-              
-              // Calculate distance-based opacity and size
+
+              // distance-based opacity and size
               const distanceRatio = Math.min(
                 1,
-                Math.max(0, 
-                  (poi.distance - minDistance) / 
-                  (Math.min(maxDistance, 5000) - minDistance)
-                )
+                Math.max(
+                  0,
+                  (poi.distance - minDistance) /
+                    (Math.min(maxDistance, 5000) - minDistance),
+                ),
               );
-              
+
               // Opacity: 0.2 (far) to 1.0 (near)
               const opacity = 0.2 + (1 - distanceRatio) * 0.8;
-              
+
               // Font size: 8px (far) to 16px (near)
               const fontSize = 8 + (1 - distanceRatio) * 8;
 
@@ -363,34 +373,87 @@ export default function ARBetaView() {
 
               // -----------------------------
               // OFFSCREEN DIRECTIONAL TRIANGLE
-              // Only show if within max distance (not clipped by max)
               // -----------------------------
-              if (poi.isOffscreen || poi.isDistanceClipped === "max") {
+              const isTooFar =
+                poi.isDistanceClipped &&
+                poi.screenPos.clippedByDistance === "max";
+              const isTooClose =
+                poi.isDistanceClipped &&
+                poi.screenPos.clippedByDistance === "min";
+              const isOffscreen = poi.isOffscreen; // Offscreen but in range
+
+              // Show triangles for: offscreen, too far, OR too close
+              if (isOffscreen || isTooFar || isTooClose) {
                 // Direction from center of screen to POI
                 const centerX = width / 2;
                 const centerY = height / 2;
-                
+
                 // Calculate direction from center to offscreen position
                 const dx = x - centerX;
                 const dy = y - centerY;
                 const angle = Math.atan2(dy, dx);
-                
-                // Place triangle on screen edge
-                const edgeDistance = 40;
-                const triX = centerX + Math.cos(angle) * (width / 2 - edgeDistance);
-                const triY = centerY + Math.sin(angle) * (height / 2 - edgeDistance);
-                
+
+                // Determine where to place the triangle
+                let triX, triY, triRotation;
+
+                if (isTooFar) {
+                  // Place at TOP of screen, pointing up
+                  triX = centerX + Math.cos(angle) * (width / 2 - 40);
+                  triY = 50; // Top of screen
+                  triRotation = -Math.PI / 2; // Point up
+                } else if (isTooClose) {
+                  // Place at BOTTOM of screen, pointing down
+                  triX = centerX + Math.cos(angle) * (width / 2 - 40);
+                  triY = height - 50; // Bottom of screen
+                  triRotation = Math.PI / 2; // Point down
+                } else {
+                  // Offscreen but in range - place on screen edge
+                  const edgeDistance = 40;
+                  triX = centerX + Math.cos(angle) * (width / 2 - edgeDistance);
+                  triY =
+                    centerY + Math.sin(angle) * (height / 2 - edgeDistance);
+                  triRotation = angle;
+                }
+
                 // Triangle size based on distance (larger for closer)
                 const triSize = 6 + (1 - distanceRatio) * 8;
-                
+
+                // color based on clipping type
+                let strokeColor = `rgba(255, 255, 255, ${Math.max(0.3, opacity)})`;
+                if (isTooFar) {
+                  strokeColor = `rgba(255, 200, 100, ${Math.max(0.4, opacity)})`; // yellow for too far
+                } else if (isTooClose) {
+                  strokeColor = `rgba(100, 200, 255, ${Math.max(0.4, opacity)})`; // blue for too close
+                }
+
+                // For offscreen (in range), use the direction angle to point toward POI
+                if (isOffscreen) {
+                  return (
+                    <Line
+                      key={poi.id}
+                      x1={triX - Math.cos(angle + Math.PI / 2) * triSize}
+                      y1={triY - Math.sin(angle + Math.PI / 2) * triSize}
+                      x2={triX + Math.cos(angle) * triSize * 1.5}
+                      y2={triY + Math.sin(angle) * triSize * 1.5}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                    />
+                  );
+                }
+
+                // For too far / too close - point straight up/down
+                // This is a simple triangle pointing up or down
+                const triAngle = isTooFar ? -Math.PI / 2 : Math.PI / 2;
+
                 return (
                   <Line
                     key={poi.id}
-                    x1={triX - Math.cos(angle + Math.PI / 2) * triSize}
-                    y1={triY - Math.sin(angle + Math.PI / 2) * triSize}
-                    x2={triX + Math.cos(angle) * triSize * 1.5}
-                    y2={triY + Math.sin(angle) * triSize * 1.5}
-                    stroke={`rgba(255, 255, 255, ${Math.max(0.3, opacity)})`}
+                    x1={triX - Math.cos(triAngle + Math.PI / 2) * triSize}
+                    y1={triY - Math.sin(triAngle + Math.PI / 2) * triSize}
+                    x2={triX + Math.cos(triAngle) * triSize * 1.5}
+                    y2={triY + Math.sin(triAngle) * triSize * 1.5}
+                    stroke={strokeColor}
                     strokeWidth={3}
                     strokeLinecap="round"
                   />
@@ -400,7 +463,6 @@ export default function ARBetaView() {
               return null;
             })}
           </Svg>
-
           {/* Center Reticle - clean, minimal */}
           <View style={styles.reticle}>
             <View style={styles.reticleDot} />
