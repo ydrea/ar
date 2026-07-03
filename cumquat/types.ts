@@ -33,6 +33,7 @@ export type ScreenPosition = {
   visible: boolean;
   clippedByDistance?: "min" | "max" | null; // Add this
   depth?: number; // Add depth for debugging
+  radialDistance?: number; // Add radial distance for debugging
 };
 
 export type ProjectedPOI = {

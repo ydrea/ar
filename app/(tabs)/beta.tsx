@@ -11,7 +11,7 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
-import { CameraView, useCameraPermissions, CameraType } from "expo-camera";
+import { CameraView, CameraType } from "expo-camera";
 import { Svg, Line, Text as SvgText } from "react-native-svg";
 import {
   projectToScreenWithClipping,
@@ -27,7 +27,7 @@ import {
   GestureMode,
   LimitType,
 } from "@/cumquat/gestures/ArGestureControler";
-import { ActiveLimitIndicator } from "@/ui/ActiveLimitIndicator";
+//import { ActiveLimitIndicator } from "@/ui/ActiveLimitIndicator";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
 
 const { width, height } = Dimensions.get("window");
@@ -297,7 +297,7 @@ export default function ARBetaView() {
   }, [projectedPOIs]);
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <GestureHandlerRootView style={styles.container} testID="ar-root">
       <GestureDetector gesture={pinchGesture}>
         <View style={styles.container}>
           {/* Camera View */}
@@ -506,6 +506,7 @@ export default function ARBetaView() {
           {/* Bottom Controls - minimal */}
           <View style={styles.controls}>
             <TouchableOpacity
+              testID="reset-button"
               style={styles.controlButton}
               onPress={() => {
                 gestureController.current.updateState(

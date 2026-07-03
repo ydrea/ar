@@ -25,6 +25,8 @@
     "expo-system-ui": "~56.0.5",
     "expo-updates": "~56.0.18",
     "expo-web-browser": "~56.0.5",
+    "jest": "~29.7.0",
+    "jest-expo": "~56.0.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
@@ -37,6 +39,8 @@
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.14",
     "typescript": "~6.0.3"
   },
@@ -47,7 +51,9 @@
     "dev": "EAS_BUILD_PROFILE=development npx expo start --dev-client --clear --localhost",
     "preview": "EAS_BUILD_PROFILE=preview npx expo start --dev-client --clear --localhost",
     "prod": "EAS_BUILD_PROFILE=production npx expo start --dev-client --clear --localhost",
-    "open": "adb shell am start -a android.intent.action.VIEW -d 'exp+ar://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'"
+    "open": "adb shell am start -a android.intent.action.VIEW -d 'exp+ar://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "private": true
 }

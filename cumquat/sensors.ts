@@ -329,7 +329,7 @@ function projectToScreenWithClipping(
     };
   }
 
-  // Project to screen (same logic as projectToScreen)
+  // Project to screen
   const correctedX = -cameraPos.y;
   const correctedY = -cameraPos.x;
 
@@ -354,6 +354,7 @@ function projectToScreenWithClipping(
     clipped: !visible,
     clippedByDistance: null,
     depth: depth,
+    radialDistance: trueDistance,
   };
 }
 
