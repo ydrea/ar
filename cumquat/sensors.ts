@@ -148,7 +148,7 @@ function geoToENU(
 ): Vec3 {
   // Validate inputs
   if (isNaN(lat2) || isNaN(lon2)) {
-    console.error(`Invalid POI coordinates: lat=${lat2}, lon=${lon2}`);
+    Tlog(`Invalid POI coordinates: lat=${lat2}, lon=${lon2}`);
     return { x: 0, y: 0, z: 0 };
   }
   const φ1 = lat1 * DEG2RAD;

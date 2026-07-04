@@ -1,7 +1,7 @@
 import { SymbolView } from "expo-symbols";
 import { Link, Tabs } from "expo-router";
 import { Platform, Pressable } from "react-native";
-
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Colors from "@/constants/Colors";
 import { useColorScheme } from "@/components/useColorScheme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
@@ -22,15 +22,11 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "chevron.left.forwardslash.chevron.right",
-                android: "code",
-                web: "code",
-              }}
-              tintColor={color}
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? "home-variant" : "home-outline"}
               size={28}
+              color={color}
             />
           ),
           headerRight: () => (
@@ -50,72 +46,28 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="beta"
+        name="gestbeta"
         options={{
           title: "AR Beta",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "chevron.left.forwardslash.chevron.right",
-                android: "code",
-                web: "code",
-              }}
-              tintColor={color}
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? "line-scan" : "scan-helper"}
               size={28}
+              color={color}
             />
           ),
         }}
       />
 
-      {/* <Tabs.Screen
-        name="gest-"
-        options={{
-          title: "AR-",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "chevron.left.forwardslash.chevron.right",
-                android: "code",
-                web: "code",
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      /> */}
-
-      {/* <Tabs.Screen
-        name="quat+svg"
-        options={{
-          title: "+SVG",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "chevron.left.forwardslash.chevron.right",
-                android: "code",
-                web: "code",
-              }}
-              tintColor={color}
-              size={28}
-            /> */}
-      {/* ),
-        }}
-      /> */}
-
       <Tabs.Screen
         name="help"
         options={{
           title: "Help",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "chevron.left.forwardslash.chevron.right",
-                android: "code",
-                web: "code",
-              }}
-              tintColor={color}
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? "help-rhombus" : "help-rhombus-outline"}
               size={28}
+              color={color}
             />
           ),
         }}
