@@ -1,86 +1,84 @@
-# WH&fW
+# AR Compass Beta
 
-my Expo AR template app
+An augmented reality view for exploring points of interest with intuitive bidirectional gesture controls.
 
-## UI
+## 🖐️ Gesture Controls (Two-Finger)
 
-1. Smart Zoom Synchronization
-   Top half pinch → Increases MIN distance + zooms OUT (wider view)
+| Gesture              | Direction   | Effect                     | Result                                   |
+| -------------------- | ----------- | -------------------------- | ---------------------------------------- |
+| **Top finger**       | ⬆️ UP       | MAX distance **INCREASES** | See further away                         |
+| **Top finger**       | ⬇️ DOWN     | MAX distance **DECREASES** | See less far                             |
+| **Bottom finger**    | ⬆️ UP       | MIN distance **INCREASES** | Can't see as close (near clip moves out) |
+| **Bottom finger**    | ⬇️ DOWN     | MIN distance **DECREASES** | Can see closer objects                   |
+| **Both fingers**     | ↕️ APART    | Camera Zoom **IN**         | Closer view                              |
+| **Both fingers**     | ↕️ TOGETHER | Camera Zoom **OUT**        | Wider view                               |
+| **Horizontal pinch** | ↔️ SPREAD   | FOV **INCREASES**          | See more (wider)                         |
+| **Horizontal pinch** | ↔️ PINCH    | FOV **DECREASES**          | See less (narrower)                      |
 
-Bottom half pinch → Increases MAX distance + zooms IN (closer view)
+## 🎯 Visual Feedback
 
-Symmetric pinch → Adjusts both distances + controls zoom directly
+### POI Indicators
 
-1. Real-time Camera Updates
-   Uses cameraRef.current.zoom to apply zoom changes instantly
+| Indicator           | Location  | Meaning                                |
+| ------------------- | --------- | -------------------------------------- |
+| **White label**     | On screen | POI is visible with name + distance    |
+| **White triangle**  | On edge   | POI is offscreen → Turn this way       |
+| **Yellow triangle** | At top    | POI is too far (beyond max distance)   |
+| **Blue triangle**   | At bottom | POI is too close (within min distance) |
 
-Zoom range: 0 (wide) to 1 (max optical/digital zoom)
+### Distance-Based Styling
 
-Smooth spring animations for visual feedback
+- **Opacity**: Farther = more transparent (0.2 → 1.0)
+- **Font Size**: Farther = smaller text (8px → 16px)
+- **Triangle Size**: Farther = smaller indicator (6px → 14px)
 
-1. Visual Zoom Feedback
-   Popup indicator shows zoom percentage during adjustment
+## 📊 Top HUD Display
 
-POI markers scale with zoom level (larger when zoomed in)
+| Element     | Description                       |
+| ----------- | --------------------------------- |
+| **MIN**     | Current minimum distance (green)  |
+| **BEARING** | Average direction of visible POIs |
+| **MAX**     | Current maximum distance (blue)   |
+| **FOV**     | Current field of view in degrees  |
 
-Distance range bar shows zoom level as text
+## 🔄 Quick Reset
 
-1. Zoom Reset Button
-   🔍 button resets camera zoom to 0 (wide angle)
+Tap the **↺** button to reset:
 
-Also resets min/max distances to defaults
+- MIN distance to default (30m)
+- MAX distance to default (5000m)
+- Camera zoom to wide (0)
+- FOV to default (60°)
 
-1. Performance Optimizations
-   Camera zoom updates happen on native thread
+## 🎮 Gesture Logic
 
-POI scaling based on zoom is lightweight SVG transforms
+The gesture controller intelligently detects which finger is moving:
 
-Gesture recognition remains smooth even during zoom
+1. **Top finger moves** → Adjust MAX distance
+2. **Bottom finger moves** → Adjust MIN distance
+3. **Both fingers move** → Camera zoom
+4. **Horizontal pinch** → FOV control
 
-Key Smooth Zoom Features
+Each gesture works BOTH ways for full control:
 
-1. Spring Animations
-   Camera zoom uses withSpring() for natural, bouncy feel
+- UP/SPREAD = increase
+- DOWN/PINCH = decrease
 
-Configurable damping, mass, and stiffness parameters
+## 🛠 Technical Notes
 
-Momentum-based velocity for realistic gesture following
+- Uses device motion sensors for orientation tracking
+- GPS for user position
+- Real-time perspective projection
+- Rubber band effect at gesture limits
+- Spring animations for smooth feedback
+- Distance clipping uses true radial distance (not camera-plane depth)
 
-1. Gesture Momentum
-   Tracks finger velocity during gesture
+## 📱 Beta Status
 
-Applies momentum when gesture ends for smooth finish
+- Works best outdoors with clear GPS signal
+- POIs are pre-configured for testing
+- Sensor fusion for stable orientation
+- Min/Max distance gestures independent
 
-Prevents abrupt stops
-
-1. Visual Feedback Animations
-   Pulse ring when gesture starts (expands and fades)
-
-UI scale bounce for tactile feel
-
-Distance bar animates smoothly between values
-
-1. Seamless Camera Integration
-   useAnimatedProps applies zoom directly to camera
-
-No bridge crossing for zoom updates (UI thread only)
-
-60fps performance even during complex gestures
-
-1. Interactive UI Elements
-   Distance labels animate with spring physics
-
-Button press animations for zoom reset
-
-Smooth opacity transitions for POI markers
-
-## UI config
-
-// For responsive, snappy feel (gaming)
-springConfig: { damping: 25, mass: 0.5, stiffness: 200 }
-
-// For smooth, cinematic feel (video)
-springConfig: { damping: 15, mass: 1.2, stiffness: 100 }
-
-// For bouncy, playful feel (UI)
-springConfig: { damping: 10, mass: 0.8, stiffness: 80 }
+- Sensor fusion for stable orientation
+- Min/Max distance gestures independent

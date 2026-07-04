@@ -1,4 +1,4 @@
-// cumquat/gestures/ArGestureControler.ts
+// cumquat/gestures/ArGestureController.ts
 import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { Dimensions } from "react-native";
@@ -27,26 +27,16 @@ interface GestureCallbacks {
   onGestureEnd: (mode: GestureMode, state: any) => void;
 }
 
-// Internal state type for type safety
-interface GestureState {
-  minDistance: number;
-  maxDistance: number;
-  cameraZoom: number;
-  fov: number;
-}
-
 export class ARGestureController {
   private callbacks: GestureCallbacks | null = null;
 
   // Current state
-  private state: GestureState = {
-    minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
-    maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
-    cameraZoom: 0,
-    fov: AR_CONSTANTS.FOV.DEFAULT,
-  };
+  private minDistance = AR_CONSTANTS.DISTANCE.DEFAULT_MIN;
+  private maxDistance = AR_CONSTANTS.DISTANCE.DEFAULT_MAX;
+  private cameraZoom = 0;
+  private fov = AR_CONSTANTS.FOV.DEFAULT;
 
-  // Gesture tracking
+  // Gesture tracking - using proper touch events
   private startTopY = 0;
   private startBottomY = 0;
   private startLeftX = 0;
@@ -74,157 +64,24 @@ export class ARGestureController {
   private readonly HORIZONTAL_PIXEL_TO_FOV = 0.2;
   private readonly RUBBER_BAND_FACTOR = 0.3;
 
-  // ============ CLAMP, NORMALIZE, VALIDATE ============
-
-  /**
-   * Clamp a value between min and max
-   */
-  private clamp(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
-  }
-
-  /**
-   * Normalize state values to ensure consistency
-   * - Ensures min <= max
-   * - Clamps to valid ranges
-   */
-  private normalizeState(
-    min: number,
-    max: number,
-    zoom: number,
-    fov: number,
-  ): GestureState {
-    // Ensure min <= max
-    const normalizedMin = Math.min(min, max);
-    const normalizedMax = Math.max(min, max);
-
-    return {
-      minDistance: normalizedMin,
-      maxDistance: normalizedMax,
-      cameraZoom: zoom,
-      fov: fov,
-    };
-  }
-
-  /**
-   * Validate and clamp all state values to their valid ranges
-   * This is the main entry point for safe state updates
-   */
-  // In ArGestureControler.ts - update validateState
-
-  private validateState(
-    min: number,
-    max: number,
-    zoom: number,
-    fov: number,
-  ): GestureState {
-    // Handle NaN and Infinity - fall back to defaults
-    const safeMin =
-      isNaN(min) || !isFinite(min) ? AR_CONSTANTS.DISTANCE.DEFAULT_MIN : min;
-    const safeMax =
-      isNaN(max) || !isFinite(max) ? AR_CONSTANTS.DISTANCE.DEFAULT_MAX : max;
-    const safeZoom = isNaN(zoom) || !isFinite(zoom) ? 0 : zoom;
-    const safeFov =
-      isNaN(fov) || !isFinite(fov) ? AR_CONSTANTS.FOV.DEFAULT : fov;
-
-    // First normalize (ensure ordering)
-    const normalized = this.normalizeState(safeMin, safeMax, safeZoom, safeFov);
-
-    // Then clamp each value to its valid range
-    const clampedMin = this.clamp(
-      normalized.minDistance,
-      AR_CONSTANTS.DISTANCE.MIN,
-      AR_CONSTANTS.DISTANCE.MAX,
-    );
-
-    const clampedMax = this.clamp(
-      normalized.maxDistance,
-      AR_CONSTANTS.DISTANCE.MIN,
-      AR_CONSTANTS.DISTANCE.MAX,
-    );
-
-    const clampedZoom = this.clamp(normalized.cameraZoom, 0, 1);
-
-    const clampedFov = this.clamp(
-      normalized.fov,
-      AR_CONSTANTS.FOV.MIN,
-      AR_CONSTANTS.FOV.MAX,
-    );
-
-    // Ensure min < max with margin (but don't exceed valid ranges)
-    let finalMin = Math.min(clampedMin, clampedMax - 100);
-    let finalMax = Math.max(clampedMin + 100, clampedMax);
-
-    // Make sure we don't go below MIN or above MAX
-    finalMin = Math.max(AR_CONSTANTS.DISTANCE.MIN, finalMin);
-    finalMax = Math.min(AR_CONSTANTS.DISTANCE.MAX, finalMax);
-
-    return {
-      minDistance: finalMin,
-      maxDistance: finalMax,
-      cameraZoom: clampedZoom,
-      fov: clampedFov,
-    };
-  }
-
-  /**
-   * Safe updateState with validation and clamping
-   * Use this for committed state updates (after gesture ends)
-   */
-  updateState(min: number, max: number, zoom: number, fov: number) {
-    const validated = this.validateState(min, max, zoom, fov);
-    this.state = validated;
-
-    // Log any corrections for debugging
-    if (min !== validated.minDistance || max !== validated.maxDistance) {
-      Tlog(
-        `🔄 State normalized: min=${validated.minDistance}, max=${validated.maxDistance}`,
-      );
-    }
-  }
-
-  /**
-   * Get the current validated state
-   */
-  getState() {
-    return { ...this.state };
-  }
-
-  /**
-   * Get individual values with validation
-   */
-  getMinDistance(): number {
-    return this.clamp(
-      this.state.minDistance,
-      AR_CONSTANTS.DISTANCE.MIN,
-      this.state.maxDistance - 100,
-    );
-  }
-
-  getMaxDistance(): number {
-    return this.clamp(
-      this.state.maxDistance,
-      this.state.minDistance + 100,
-      AR_CONSTANTS.DISTANCE.MAX,
-    );
-  }
-
-  getZoom(): number {
-    return this.clamp(this.state.cameraZoom, 0, 1);
-  }
-
-  getFOV(): number {
-    return this.clamp(
-      this.state.fov,
-      AR_CONSTANTS.FOV.MIN,
-      AR_CONSTANTS.FOV.MAX,
-    );
-  }
-
-  // ... rest of the class methods ...
-
   setCallbacks(callbacks: GestureCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  updateState(min: number, max: number, zoom: number, fov: number) {
+    this.minDistance = min;
+    this.maxDistance = max;
+    this.cameraZoom = zoom;
+    this.fov = fov;
+  }
+
+  getState() {
+    return {
+      min: this.minDistance,
+      max: this.maxDistance,
+      zoom: this.cameraZoom,
+      fov: this.fov,
+    };
   }
 
   private checkLimitsAndApplyRubberBand(
@@ -265,6 +122,7 @@ export class ARGestureController {
       .maxPointers(2)
       .activateAfterLongPress(0)
       .onTouchesDown((event) => {
+        // This is the correct event name for when touches start
         if (event.allTouches.length !== 2) return;
 
         const [touch1, touch2] = event.allTouches;
@@ -289,7 +147,7 @@ export class ARGestureController {
             this.rightTouchId = touch1.id;
           }
 
-          this.baseFOV = this.state.fov;
+          this.baseFOV = this.fov;
           if (this.callbacks) {
             runOnJS(this.callbacks.onGestureStart.bind(this.callbacks))(
               "horizontal",
@@ -310,9 +168,9 @@ export class ARGestureController {
             this.bottomTouchId = touch1.id;
           }
 
-          this.baseMinDist = this.state.minDistance;
-          this.baseMaxDist = this.state.maxDistance;
-          this.baseCameraZoom = this.state.cameraZoom;
+          this.baseMinDist = this.minDistance;
+          this.baseMaxDist = this.maxDistance;
+          this.baseCameraZoom = this.cameraZoom;
           this.gestureMode = null;
           this.movingFinger = null;
 
@@ -323,6 +181,7 @@ export class ARGestureController {
         this.activeLimit = null;
       })
       .onTouchesMove((event) => {
+        // This is the correct event name for touch updates
         if (event.allTouches.length !== 2) return;
 
         if (this.gestureMode === "horizontal") {
@@ -339,6 +198,8 @@ export class ARGestureController {
           const leftDeltaX = leftTouch.x - this.startLeftX;
           const rightDeltaX = rightTouch.x - this.startRightX;
 
+          // Pinching in (fingers closer) = decrease FOV (zoom in)
+          // Spreading out (fingers apart) = increase FOV (zoom out)
           const pinchDelta = (rightDeltaX - leftDeltaX) / 2;
           const fovDelta = pinchDelta * this.HORIZONTAL_PIXEL_TO_FOV;
 
@@ -352,14 +213,14 @@ export class ARGestureController {
               "fov",
             );
 
-          this.state.fov = newValue;
+          this.fov = newValue;
           this.isRubberBanding = isRubberBanding;
 
           if (hitLimit && !this.activeLimit) {
             this.activeLimit = hitLimit;
             const excess = Math.abs(
-              this.state.fov -
-                (this.state.fov < AR_CONSTANTS.FOV.MIN
+              this.fov -
+                (this.fov < AR_CONSTANTS.FOV.MIN
                   ? AR_CONSTANTS.FOV.MIN
                   : AR_CONSTANTS.FOV.MAX),
             );
@@ -380,13 +241,13 @@ export class ARGestureController {
 
           if (this.callbacks) {
             runOnJS(this.callbacks.onFOVChange.bind(this.callbacks))(
-              this.state.fov,
+              this.fov,
               this.isRubberBanding,
             );
             runOnJS(this.callbacks.onGestureUpdate.bind(this.callbacks))(
               this.gestureMode,
               {
-                fov: this.state.fov,
+                fov: this.fov,
                 isRubberBanding: this.isRubberBanding,
               },
             );
@@ -405,9 +266,11 @@ export class ARGestureController {
           const topDeltaY = topTouch.y - this.startTopY;
           const bottomDeltaY = bottomTouch.y - this.startBottomY;
 
+          // Detect which finger is moving
           const isTopMoving = Math.abs(topDeltaY) > 10;
           const isBottomMoving = Math.abs(bottomDeltaY) > 10;
 
+          // Classify gesture mode
           if (this.gestureMode === null) {
             if (isTopMoving && !isBottomMoving) {
               this.gestureMode = "adjustMax";
@@ -442,21 +305,28 @@ export class ARGestureController {
           let isRubberBanding = false;
           let hitLimit: LimitType | null = null;
 
+          // INTUITIVE MAPPING:
+          // Top finger UP = increase MAX distance (see further)
+          // Top finger DOWN = decrease MAX distance
+          // Bottom finger UP = increase MIN distance (near clip further)
+          // Bottom finger DOWN = decrease MIN distance (near clip closer)
+
           if (this.gestureMode === "adjustMax") {
-            const maxDelta = -topDeltaY;
+            const maxDelta = -topDeltaY; // Moving UP = positive delta
             let rawMax =
               this.baseMaxDist + maxDelta * this.VERTICAL_PIXEL_TO_METER;
 
             const maxResult = this.checkLimitsAndApplyRubberBand(
               rawMax,
-              this.state.minDistance + 1000,
+              this.minDistance + 1000,
               AR_CONSTANTS.DISTANCE.MAX,
               "max",
             );
-            this.state.maxDistance = maxResult.newValue;
+            this.maxDistance = maxResult.newValue;
             isRubberBanding = maxResult.isRubberBanding;
             hitLimit = maxResult.hitLimit;
 
+            // Slight zoom adjustment
             let rawZoom =
               this.baseCameraZoom +
               maxDelta * this.VERTICAL_PIXEL_TO_ZOOM * 0.5;
@@ -466,43 +336,43 @@ export class ARGestureController {
               1,
               "zoom",
             );
-            this.state.cameraZoom = zoomResult.newValue;
+            this.cameraZoom = zoomResult.newValue;
             if (zoomResult.isRubberBanding) isRubberBanding = true;
 
             if (this.callbacks) {
               runOnJS(this.callbacks.onMaxDistanceChange.bind(this.callbacks))(
-                this.state.maxDistance,
+                this.maxDistance,
                 isRubberBanding,
               );
               runOnJS(this.callbacks.onCameraZoomChange.bind(this.callbacks))(
-                this.state.cameraZoom,
+                this.cameraZoom,
                 isRubberBanding,
               );
             }
           } else if (this.gestureMode === "adjustMin") {
-            const minDelta = -bottomDeltaY;
+            const minDelta = -bottomDeltaY; // Moving UP = positive delta
             let rawMin =
               this.baseMinDist + minDelta * this.VERTICAL_PIXEL_TO_METER;
 
             const minResult = this.checkLimitsAndApplyRubberBand(
               rawMin,
               AR_CONSTANTS.DISTANCE.MIN,
-              this.state.maxDistance - 1000,
+              this.maxDistance - 1000,
               "min",
             );
-            this.state.minDistance = minResult.newValue;
+            this.minDistance = minResult.newValue;
             isRubberBanding = minResult.isRubberBanding;
             hitLimit = minResult.hitLimit;
 
             if (this.callbacks) {
               runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
-                this.state.minDistance,
+                this.minDistance,
                 isRubberBanding,
               );
             }
           } else if (this.gestureMode === "symmetric") {
             const avgDeltaY = (topDeltaY + bottomDeltaY) / 2;
-            const zoomDelta = -avgDeltaY;
+            const zoomDelta = -avgDeltaY; // Moving apart = zoom in
 
             let rawZoom =
               this.baseCameraZoom + zoomDelta * this.VERTICAL_PIXEL_TO_ZOOM;
@@ -512,10 +382,11 @@ export class ARGestureController {
               1,
               "zoom",
             );
-            this.state.cameraZoom = zoomResult.newValue;
+            this.cameraZoom = zoomResult.newValue;
             isRubberBanding = zoomResult.isRubberBanding;
             hitLimit = zoomResult.hitLimit;
 
+            // Slight distance adjustment for context
             let rawMin =
               this.baseMinDist + zoomDelta * this.VERTICAL_PIXEL_TO_METER * 0.2;
             let rawMax =
@@ -524,32 +395,32 @@ export class ARGestureController {
             const minResult = this.checkLimitsAndApplyRubberBand(
               rawMin,
               AR_CONSTANTS.DISTANCE.MIN,
-              this.state.maxDistance - 1000,
+              this.maxDistance - 1000,
               "min",
             );
             const maxResult = this.checkLimitsAndApplyRubberBand(
               rawMax,
-              this.state.minDistance + 1000,
+              this.minDistance + 1000,
               AR_CONSTANTS.DISTANCE.MAX,
               "max",
             );
 
-            this.state.minDistance = minResult.newValue;
-            this.state.maxDistance = maxResult.newValue;
+            this.minDistance = minResult.newValue;
+            this.maxDistance = maxResult.newValue;
             if (minResult.isRubberBanding || maxResult.isRubberBanding)
               isRubberBanding = true;
 
             if (this.callbacks) {
               runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
-                this.state.minDistance,
+                this.minDistance,
                 isRubberBanding,
               );
               runOnJS(this.callbacks.onMaxDistanceChange.bind(this.callbacks))(
-                this.state.maxDistance,
+                this.maxDistance,
                 isRubberBanding,
               );
               runOnJS(this.callbacks.onCameraZoomChange.bind(this.callbacks))(
-                this.state.cameraZoom,
+                this.cameraZoom,
                 isRubberBanding,
               );
             }
@@ -579,9 +450,9 @@ export class ARGestureController {
             runOnJS(this.callbacks.onGestureUpdate.bind(this.callbacks))(
               this.gestureMode,
               {
-                min: this.state.minDistance,
-                max: this.state.maxDistance,
-                zoom: this.state.cameraZoom,
+                min: this.minDistance,
+                max: this.maxDistance,
+                zoom: this.cameraZoom,
                 isRubberBanding: this.isRubberBanding,
               },
             );
@@ -589,26 +460,21 @@ export class ARGestureController {
         }
       })
       .onTouchesUp((event) => {
-        // On gesture end, validate and clamp the final state
+        // This is the correct event name for when touches end
         if (this.gestureMode === "horizontal") {
-          let finalFOV = this.state.fov;
+          let finalFOV = this.fov;
           if (this.isRubberBanding) {
-            // Validate and clamp
-            const validated = this.validateState(
-              this.state.minDistance,
-              this.state.maxDistance,
-              this.state.cameraZoom,
-              this.state.fov,
+            finalFOV = Math.max(
+              AR_CONSTANTS.FOV.MIN,
+              Math.min(AR_CONSTANTS.FOV.MAX, this.fov),
             );
-            finalFOV = validated.fov;
-            this.state.fov = finalFOV;
-
             if (this.callbacks) {
               runOnJS(this.callbacks.onFOVChange.bind(this.callbacks))(
                 finalFOV,
                 false,
               );
             }
+            this.fov = finalFOV;
           }
 
           Tlog(`✅ Horizontal ended - FOV: ${finalFOV.toFixed(1)}°`);
@@ -622,25 +488,20 @@ export class ARGestureController {
             );
           }
         } else {
-          let finalMin = this.state.minDistance;
-          let finalMax = this.state.maxDistance;
-          let finalZoom = this.state.cameraZoom;
+          let finalMin = this.minDistance;
+          let finalMax = this.maxDistance;
+          let finalZoom = this.cameraZoom;
 
           if (this.isRubberBanding) {
-            // Validate and clamp the final state
-            const validated = this.validateState(
-              this.state.minDistance,
-              this.state.maxDistance,
-              this.state.cameraZoom,
-              this.state.fov,
+            finalMin = Math.max(
+              AR_CONSTANTS.DISTANCE.MIN,
+              Math.min(this.maxDistance - 1000, this.minDistance),
             );
-            finalMin = validated.minDistance;
-            finalMax = validated.maxDistance;
-            finalZoom = validated.cameraZoom;
-
-            this.state.minDistance = finalMin;
-            this.state.maxDistance = finalMax;
-            this.state.cameraZoom = finalZoom;
+            finalMax = Math.min(
+              AR_CONSTANTS.DISTANCE.MAX,
+              Math.max(this.minDistance + 1000, this.maxDistance),
+            );
+            finalZoom = Math.max(0, Math.min(1, this.cameraZoom));
 
             if (this.callbacks) {
               runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
@@ -656,6 +517,10 @@ export class ARGestureController {
                 false,
               );
             }
+
+            this.minDistance = finalMin;
+            this.maxDistance = finalMax;
+            this.cameraZoom = finalZoom;
           }
 
           Tlog(
@@ -695,19 +560,19 @@ export class ARGestureController {
   private getExcessForLimit(limit: LimitType): number {
     switch (limit) {
       case "min":
-        return Math.max(0, AR_CONSTANTS.DISTANCE.MIN - this.state.minDistance);
+        return Math.max(0, AR_CONSTANTS.DISTANCE.MIN - this.minDistance);
       case "max":
-        return Math.max(0, this.state.maxDistance - AR_CONSTANTS.DISTANCE.MAX);
+        return Math.max(0, this.maxDistance - AR_CONSTANTS.DISTANCE.MAX);
       case "zoom":
         return Math.max(
           0,
-          Math.abs(this.state.cameraZoom - (this.state.cameraZoom > 1 ? 1 : 0)),
+          Math.abs(this.cameraZoom - (this.cameraZoom > 1 ? 1 : 0)),
         );
       case "fov":
-        if (this.state.fov < AR_CONSTANTS.FOV.MIN)
-          return AR_CONSTANTS.FOV.MIN - this.state.fov;
-        if (this.state.fov > AR_CONSTANTS.FOV.MAX)
-          return this.state.fov - AR_CONSTANTS.FOV.MAX;
+        if (this.fov < AR_CONSTANTS.FOV.MIN)
+          return AR_CONSTANTS.FOV.MIN - this.fov;
+        if (this.fov > AR_CONSTANTS.FOV.MAX)
+          return this.fov - AR_CONSTANTS.FOV.MAX;
         return 0;
       default:
         return 0;

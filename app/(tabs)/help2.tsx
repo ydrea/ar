@@ -11,18 +11,6 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeIn, SlideInRight } from "react-native-reanimated";
-import { useLanguage } from "@/contexts/LanguageContext";
-import Svg, {
-  Circle,
-  Path,
-  Rect,
-  Line,
-  Text as SvgText,
-  G,
-  Defs,
-  LinearGradient,
-  Stop,
-} from "react-native-svg";
 
 const { width, height } = Dimensions.get("window");
 
@@ -30,7 +18,7 @@ interface HelpScreenProps {
   onClose: () => void;
 }
 
-// SVG Icons with proper finger highlighting
+// SVG Icons
 const HandIcon = ({
   color,
   direction,
@@ -40,7 +28,7 @@ const HandIcon = ({
   direction?: "up" | "down" | "left" | "right" | "horizontal";
   finger?: "top" | "bottom" | "both";
 }) => (
-  <Svg width={44} height={44} viewBox="0 0 24 24">
+  <Svg width={40} height={40} viewBox="0 0 24 24">
     {direction === "horizontal" ? (
       // Horizontal pinch - FOV control
       <>
@@ -58,6 +46,7 @@ const HandIcon = ({
         />
         <Circle cx="8" cy="12" r="1.5" fill={color} />
         <Circle cx="16" cy="12" r="1.5" fill={color} />
+        {/* FOV arrows */}
         <Path
           d="M12 2L12 6M12 18L12 22"
           stroke={color}
@@ -94,7 +83,7 @@ const HandIcon = ({
           opacity={0.3}
         />
         <Circle cx="12" cy="12" r="1.5" fill={color} />
-        {/* Top finger highlight */}
+        {/* Top finger highlight with UP/DOWN arrows */}
         <Circle cx="12" cy="3" r="4" fill={color} opacity={0.2} />
         <Circle cx="12" cy="3" r="2" fill={color} />
         {/* UP arrow */}
@@ -112,16 +101,17 @@ const HandIcon = ({
           strokeLinecap="round"
           opacity={0.5}
         />
-        <SvgText
-          fontSize="7"
-          fill="white"
-          x="12"
-          y="-4"
-          textAnchor="middle"
-          fontWeight="bold"
+        <Text
+          style={{
+            fontSize: 7,
+            fill: "white",
+            x: 12,
+            y: -4,
+            textAnchor: "middle",
+          }}
         >
           MAX
-        </SvgText>
+        </Text>
       </>
     ) : finger === "bottom" ? (
       // Bottom finger - Adjust MIN distance (BOTH ways)
@@ -146,7 +136,7 @@ const HandIcon = ({
           opacity={0.3}
         />
         <Circle cx="12" cy="12" r="1.5" fill={color} />
-        {/* Bottom finger highlight */}
+        {/* Bottom finger highlight with UP/DOWN arrows */}
         <Circle cx="12" cy="21" r="4" fill={color} opacity={0.2} />
         <Circle cx="12" cy="21" r="2" fill={color} />
         {/* UP arrow */}
@@ -164,16 +154,17 @@ const HandIcon = ({
           strokeWidth={1.5}
           strokeLinecap="round"
         />
-        <SvgText
-          fontSize="7"
-          fill="white"
-          x="12"
-          y="27"
-          textAnchor="middle"
-          fontWeight="bold"
+        <Text
+          style={{
+            fontSize: 7,
+            fill: "white",
+            x: 12,
+            y: 27,
+            textAnchor: "middle",
+          }}
         >
           MIN
-        </SvgText>
+        </Text>
       </>
     ) : (
       // Both fingers - Symmetric zoom
@@ -197,9 +188,6 @@ const HandIcon = ({
           strokeLinecap="round"
         />
         <Circle cx="12" cy="12" r="1.5" fill={color} />
-        {/* Both fingers highlighted */}
-        <Circle cx="12" cy="3" r="3" fill={color} opacity={0.15} />
-        <Circle cx="12" cy="21" r="3" fill={color} opacity={0.15} />
         {/* Zoom arrows */}
         <Path
           d="M12 6L12 9M12 15L12 18"
@@ -219,68 +207,14 @@ const HandIcon = ({
   </Svg>
 );
 
-// Gesture Card Component
-const GestureCard = ({
-  title,
-  description,
-  icon,
-  color,
-  delay,
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  delay: number;
-}) => (
-  <Animated.View
-    entering={SlideInRight.delay(delay).springify()}
-    style={[styles.gestureCard, { borderLeftColor: color }]}
-  >
-    <View style={styles.gestureIcon}>{icon}</View>
-    <View style={styles.gestureContent}>
-      <Text style={[styles.gestureTitle, { color }]}>{title}</Text>
-      <Text style={styles.gestureDescription}>{description}</Text>
-    </View>
-  </Animated.View>
-);
-
-// Feedback Item Component
-const FeedbackItem = ({
-  label,
-  badgeText,
-  borderColor,
-  bgColor,
-}: {
-  label: string;
-  badgeText: string;
-  borderColor: string;
-  bgColor: string;
-}) => (
-  <View style={styles.feedbackItem}>
-    <View
-      style={[
-        styles.feedbackBadge,
-        {
-          backgroundColor: bgColor,
-          borderColor: borderColor,
-        },
-      ]}
-    >
-      <Text style={styles.badgeText}>{badgeText}</Text>
-    </View>
-    <Text style={styles.feedbackLabel}>{label}</Text>
-  </View>
-);
+// ... (rest of imports and components)
 
 export default function HelpScreen({ onClose }: HelpScreenProps) {
-  const { translate } = useLanguage();
-
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <Animated.View entering={FadeIn} style={styles.header}>
-          <Text style={styles.title}>{translate("helpTitle")}</Text>
+          <Text style={styles.title}>🎯 AR Controls</Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
@@ -291,12 +225,17 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.contentContainer}
         >
-          <Text style={styles.subtitle}>{translate("helpSubtitle")}</Text>
+          <Text style={styles.subtitle}>
+            Two-finger gestures for full control. Each gesture works BOTH ways.
+          </Text>
 
           {/* MAX Distance - Top Finger */}
           <GestureCard
-            title={translate("maxDistanceTitle")}
-            description={translate("maxDistanceDesc")}
+            title="MAX Distance (Top Finger)"
+            description={
+              "⬆️ Move UP → See further (increase max)\n" +
+              "⬇️ Move DOWN → See less far (decrease max)"
+            }
             icon={<HandIcon color="#2196F3" finger="top" />}
             color="#2196F3"
             delay={100}
@@ -304,8 +243,11 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
 
           {/* MIN Distance - Bottom Finger */}
           <GestureCard
-            title={translate("minDistanceTitle")}
-            description={translate("minDistanceDesc")}
+            title="MIN Distance (Bottom Finger)"
+            description={
+              "⬆️ Move UP → Can't see as close (increase min)\n" +
+              "⬇️ Move DOWN → Can see closer (decrease min)"
+            }
             icon={<HandIcon color="#4CAF50" finger="bottom" />}
             color="#4CAF50"
             delay={200}
@@ -313,8 +255,11 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
 
           {/* Symmetric Zoom */}
           <GestureCard
-            title={translate("cameraZoomTitle")}
-            description={translate("cameraZoomDesc")}
+            title="Camera Zoom (Both Fingers)"
+            description={
+              "↕️ Move APART → Zoom IN (closer view)\n" +
+              "↕️ Move TOGETHER → Zoom OUT (wider view)"
+            }
             icon={<HandIcon color="#FF9800" finger="both" />}
             color="#FF9800"
             delay={300}
@@ -322,8 +267,11 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
 
           {/* Horizontal FOV */}
           <GestureCard
-            title={translate("fovTitle")}
-            description={translate("fovDesc")}
+            title="Field of View (Horizontal Pinch)"
+            description={
+              "↔️ Spread APART → Wider view (see more)\n" +
+              "↔️ Pinch TOGETHER → Narrower view (zoom effect)"
+            }
             icon={<HandIcon color="#00BCD4" direction="horizontal" />}
             color="#00BCD4"
             delay={400}
@@ -331,51 +279,99 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
 
           <View style={styles.divider} />
 
-          <Text style={styles.sectionTitle}>
-            {translate("visualFeedbackTitle")}
-          </Text>
+          <Text style={styles.sectionTitle}>📊 Visual Feedback</Text>
 
           <View style={styles.feedbackGrid}>
-            <FeedbackItem
-              label={translate("yellowTopTooFar")}
-              badgeText="▲"
-              borderColor="#FFC864"
-              bgColor="rgba(255, 200, 100, 0.2)"
-            />
+            <View style={styles.feedbackItem}>
+              <View
+                style={[
+                  styles.feedbackBadge,
+                  {
+                    backgroundColor: "rgba(255, 200, 100, 0.2)",
+                    borderColor: "#FFC864",
+                  },
+                ]}
+              >
+                <Text style={styles.badgeText}>▲</Text>
+              </View>
+              <Text style={styles.feedbackLabel}>
+                Yellow triangle at TOP → POI too far
+              </Text>
+            </View>
 
-            <FeedbackItem
-              label={translate("blueBottomTooClose")}
-              badgeText="▼"
-              borderColor="#64C8FF"
-              bgColor="rgba(100, 200, 255, 0.2)"
-            />
+            <View style={styles.feedbackItem}>
+              <View
+                style={[
+                  styles.feedbackBadge,
+                  {
+                    backgroundColor: "rgba(100, 200, 255, 0.2)",
+                    borderColor: "#64C8FF",
+                  },
+                ]}
+              >
+                <Text style={styles.badgeText}>▼</Text>
+              </View>
+              <Text style={styles.feedbackLabel}>
+                Blue triangle at BOTTOM → POI too close
+              </Text>
+            </View>
 
-            <FeedbackItem
-              label={translate("whiteEdgeTurn")}
-              badgeText="◀"
-              borderColor="rgba(255,255,255,0.5)"
-              bgColor="rgba(255, 255, 255, 0.1)"
-            />
+            <View style={styles.feedbackItem}>
+              <View
+                style={[
+                  styles.feedbackBadge,
+                  {
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    borderColor: "rgba(255,255,255,0.5)",
+                  },
+                ]}
+              >
+                <Text style={styles.badgeText}>◀</Text>
+              </View>
+              <Text style={styles.feedbackLabel}>
+                White triangle on EDGE → Turn this way
+              </Text>
+            </View>
 
-            <FeedbackItem
-              label={translate("cyanPulsingRing")}
-              badgeText="◎"
-              borderColor="#00FFFF"
-              bgColor="rgba(0, 255, 255, 0.15)"
-            />
+            <View style={styles.feedbackItem}>
+              <View
+                style={[
+                  styles.feedbackBadge,
+                  {
+                    backgroundColor: "rgba(0, 255, 255, 0.2)",
+                    borderColor: "#00FFFF",
+                  },
+                ]}
+              >
+                <Text style={styles.badgeText}>◎</Text>
+              </View>
+              <Text style={styles.feedbackLabel}>
+                Pulsing ring → Rubber band (at limit)
+              </Text>
+            </View>
           </View>
 
           <View style={styles.tipBox}>
-            <Text style={styles.tipTitle}>{translate("proTipsTitle")}</Text>
-            <Text style={styles.tipText}>{translate("proTip1")}</Text>
-            <Text style={styles.tipText}>{translate("proTip2")}</Text>
-            <Text style={styles.tipText}>{translate("proTip3")}</Text>
-            <Text style={styles.tipText}>{translate("proTip4")}</Text>
-            <Text style={styles.tipText}>{translate("proTip5")}</Text>
+            <Text style={styles.tipTitle}>💡 Pro Tips</Text>
+            <Text style={styles.tipText}>
+              • Top finger ⬆️ to see further, ⬇️ to limit your view
+            </Text>
+            <Text style={styles.tipText}>
+              • Bottom finger ⬆️ to ignore close objects, ⬇️ to see them
+            </Text>
+            <Text style={styles.tipText}>
+              • Horizontal pinch to adjust how wide your view is
+            </Text>
+            <Text style={styles.tipText}>
+              • Both fingers to zoom in/out like a camera
+            </Text>
+            <Text style={styles.tipText}>
+              • Tap ↺ to reset everything to defaults
+            </Text>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>{translate("helpFooter")}</Text>
+            <Text style={styles.footerText}>Beta v0.1 — AR Compass</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -402,7 +398,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#00ffff",
   },
@@ -482,30 +478,25 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   feedbackBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  badgeText: {
-    fontSize: 18,
-    color: "white",
-  },
   feedbackLabel: {
     fontSize: 12,
     color: "#cccccc",
     flex: 1,
-    flexWrap: "wrap",
   },
   tipBox: {
-    backgroundColor: "rgba(0, 255, 255, 0.08)",
+    backgroundColor: "rgba(0, 255, 255, 0.1)",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(0, 255, 255, 0.2)",
+    borderColor: "rgba(0, 255, 255, 0.3)",
     marginBottom: 24,
   },
   tipTitle: {
@@ -517,8 +508,8 @@ const styles = StyleSheet.create({
   tipText: {
     fontSize: 13,
     color: "#cccccc",
-    marginBottom: 4,
-    lineHeight: 20,
+    marginBottom: 6,
+    lineHeight: 18,
   },
   footer: {
     alignItems: "center",
