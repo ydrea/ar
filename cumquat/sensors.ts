@@ -1,4 +1,4 @@
-// sensors.ts - simplified sensor hub and math utilities for Cumquat AR
+// sensors.ts - sensor hub and math utilities for Cumquat AR
 import { DeviceMotion } from "expo-sensors";
 import * as Location from "expo-location";
 import { Tlog, Slog, Rlog, Plog } from "@/utils/tlog";
