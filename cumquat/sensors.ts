@@ -299,7 +299,7 @@ function projectToScreenWithClipping(
       visible: false,
       clipped: true,
       clippedByDistance: "min",
-      depth: -cameraPos.z,
+      depth: cameraPos.z,
     };
   }
 
@@ -310,12 +310,12 @@ function projectToScreenWithClipping(
       visible: false,
       clipped: true,
       clippedByDistance: "max",
-      depth: -cameraPos.z,
+      depth: cameraPos.z,
     };
   }
 
   // Use PROJECTION DEPTH for perspective projection
-  const depth = -cameraPos.z;
+  const depth = cameraPos.z;
 
   // Check if behind camera
   if (depth <= 0.1) {

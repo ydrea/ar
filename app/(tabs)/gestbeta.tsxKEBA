@@ -1,4 +1,5 @@
-// app/gest-beta.tsx - Clean Beta AR View
+// app/gest-beta.tsx - Cleaned up version
+import { Plog, Rlog, Slog, Tlog } from "@/utils/tlog";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
@@ -96,10 +97,6 @@ export default function ARBetaView() {
   const [isReady, setIsReady] = useState(false);
   const [gestureMode, setGestureMode] = useState<GestureMode>(null);
   const [isGestureActive, setIsGestureActive] = useState(false);
-
-  // Refs for tracking changes - MOVED TO COMPONENT BODY
-  const lastOrientationRef = useRef({ x: 0, y: 0, z: 0, w: 1 });
-  const lastLocationRef = useRef<SensorSnapshot | null>(null);
 
   // Initialize gesture controller
   useEffect(() => {
@@ -237,41 +234,42 @@ export default function ARBetaView() {
         (poi) => poi.isVisible || poi.isOffscreen || poi.isDistanceClipped,
       );
 
-    // Silent - no logging
+    // Only log occasionally to reduce spam
+    if (result.length > 0 && Math.random() < 0.05) {
+      const visible = result.filter((p) => p.isVisible);
+      console.log(`📍 Visible: ${visible.length}/${result.length}`);
+    }
     return result;
   }, [poiPositions, fov, minDistance, maxDistance]);
-
+  ////////////////////////////////////////////////////////////////
+  // Sensor subscription - track orientation continuously
+  // Sensor subscription - track orientation continuously
   // Sensor subscription - track orientation continuously
   useEffect(() => {
     if (!isReady) return;
 
+    let lastOrientation = { x: 0, y: 0, z: 0, w: 1 };
     let lastLocationUpdate = 0;
 
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
 
-      console.log(
-        `🧭 Orientation: (${snapshot.orientation.x.toFixed(3)}, ${snapshot.orientation.y.toFixed(3)}, ${snapshot.orientation.z.toFixed(3)}, ${snapshot.orientation.w.toFixed(3)})`,
-      );
-
+      // Check if orientation changed significantly
       const orient = snapshot.orientation;
-      const lastOrient = lastOrientationRef.current;
-
-      // Check orientation change
       const orientChanged =
-        Math.abs(orient.x - lastOrient.x) > 0.001 ||
-        Math.abs(orient.y - lastOrient.y) > 0.001 ||
-        Math.abs(orient.z - lastOrient.z) > 0.001 ||
-        Math.abs(orient.w - lastOrient.w) > 0.001;
+        Math.abs(orient.x - lastOrientation.x) > 0.001 ||
+        Math.abs(orient.y - lastOrientation.y) > 0.001 ||
+        Math.abs(orient.z - lastOrientation.z) > 0.001 ||
+        Math.abs(orient.w - lastOrientation.w) > 0.001;
 
-      // Check location change
+      // Check if location changed significantly
       const now = Date.now();
       const isLocationUpdate = now - lastLocationUpdate > 500;
       let locationChanged = false;
 
       if (isLocationUpdate) {
-        const last = lastLocationRef.current;
+        const last = userLocation;
         if (
           !last ||
           Math.abs(last.lat - snapshot.lat) > 0.000001 ||
@@ -279,30 +277,40 @@ export default function ARBetaView() {
         ) {
           locationChanged = true;
           lastLocationUpdate = now;
-          lastLocationRef.current = snapshot;
         }
       }
 
-      // Update if something changed
+      // Only update if something actually changed
       if (locationChanged) {
         setUserLocation(snapshot);
-        lastOrientationRef.current = { ...orient };
+        lastOrientation = { ...orient };
       } else if (orientChanged) {
+        // Only update orientation, not location
         setUserLocation((prev) => {
           if (!prev) return snapshot;
+          // Don't update if orientation is the same
+          if (
+            prev.orientation.x === orient.x &&
+            prev.orientation.y === orient.y &&
+            prev.orientation.z === orient.z &&
+            prev.orientation.w === orient.w
+          ) {
+            return prev;
+          }
           return {
             ...prev,
             orientation: orient,
             timestamp: snapshot.timestamp,
           };
         });
-        lastOrientationRef.current = { ...orient };
+        lastOrientation = { ...orient };
       }
-    }, 100);
+    }, 100); // Slower update rate
 
     return () => clearInterval(interval);
   }, [isReady]);
 
+  ///////////////////////////////////////////////////////////////
   const pinchGesture = gestureController.current.createGesture();
 
   const averageBearing = useMemo(() => {
@@ -337,10 +345,16 @@ export default function ARBetaView() {
 
           {/* AR Overlay */}
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+            {/* POI counter - helps debug */}
+            <SvgText x={10} y={30} fill="rgba(255,255,255,0.3)" fontSize={10}>
+              POIs: {projectedPOIs.filter((p) => p.isVisible).length} visible /{" "}
+              {projectedPOIs.length} total
+            </SvgText>
+
             {projectedPOIs.map((poi) => {
               const { x, y } = poi.screenPos;
 
-              // Skip if screen position is invalid
+              // Skip if screen position is invalid (0,0) and not offscreen
               if (x === 0 && y === 0 && !poi.isOffscreen) return null;
 
               const distanceRatio = Math.min(

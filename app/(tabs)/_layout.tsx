@@ -21,6 +21,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          headerShown: false,
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
@@ -49,6 +50,7 @@ export default function TabLayout() {
         name="gestbeta"
         options={{
           title: "AR Beta",
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name={focused ? "line-scan" : "scan-helper"}
@@ -60,9 +62,10 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="help"
+        name="log"
         options={{
-          title: "Help",
+          title: "LOG",
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name={focused ? "help-rhombus" : "help-rhombus-outline"}

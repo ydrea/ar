@@ -3,8 +3,16 @@ const { getDefaultConfig } = require("expo/metro-config");
 
 const config = getDefaultConfig(__dirname);
 
-// Add any custom configuration here if needed
-// For example:
-// config.resolver.assetExts.push('custom-extension');
+// Increase timeout for larger apps
+config.server = {
+  ...config.server,
+  port: 8081,
+};
+
+// Ensure resolver handles all file types
+config.resolver = {
+  ...config.resolver,
+  sourceExts: [...config.resolver.sourceExts, "mjs", "cjs"],
+};
 
 module.exports = config;

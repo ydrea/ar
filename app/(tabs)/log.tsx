@@ -1,4 +1,4 @@
-// app/gest-beta.tsx - Clean Beta AR View
+// app/gest-beta.tsx - Clean Beta AR View with proper logging
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
@@ -28,10 +28,11 @@ import {
   LimitType,
 } from "@/cumquat/gestures/ArGestureControler";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
+import { Dlog, Tlog, Elog } from "@/utils/tlog";
 
 const { width, height } = Dimensions.get("window");
 
-// prettier-ignore
+// POIs array
 const POIS = [
   { id: 1, name: "Tresnjevacki trg Market", lat: 45.8, lon: 15.9667, alt: 1 },
   { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.967, alt: 1 },
@@ -50,24 +51,95 @@ const POIS = [
   { id: 15, name: "Vrtuljak Park", lat: 45.8015, lon: 15.964, alt: 1 },
   { id: 16, name: "Trg Kvatrić", lat: 45.798, lon: 15.9695, alt: 1 },
   {
-    id: 17,    name: "Poslovni centar Tresnjevka",    lat: 45.8015,    lon: 15.9695,    alt: 1,  },
+    id: 17,
+    name: "Poslovni centar Tresnjevka",
+    lat: 45.8015,
+    lon: 15.9695,
+    alt: 1,
+  },
   { id: 18, name: "Knjižara Algoritam", lat: 45.798, lon: 15.9665, alt: 1 },
   { id: 19, name: "Pekara Kruh", lat: 45.8025, lon: 15.9675, alt: 1 },
   { id: 20, name: "Ljekarna Jambo", lat: 45.7975, lon: 15.968, alt: 1 },
-  {    id: 21,    name: "Cibona",    lat: 45.803249057020885,    lon: 15.96347793271185,    alt: 92,  },
-  {    id: 22,    name: "Zagrepčanka",    lat: 45.798528643549396,    lon: 15.96245585283698,    alt: 95,  },
-  {    id: 23,    name: "Vjesnik",    lat: 45.793551576662246,    lon: 15.959205695046405,    alt: 67,  },
-  {    id: 24,    name: "Jelenovac",   lat: 45.82741901993836,    lon: 15.956039702679561,    alt: 135,  },
-  {    id: 25,    name: "Dom sportova",    lat: 45.80736039531922,    lon: 15.951976431579737,    alt: 0,  },
-  {    id: 26,    name: "Sljeme",    lat: 45.89946265300375,    lon: 15.94482091926767,    alt: 1033,  },
-  {    id: 27,    name: "Medvedgrad",    lat: 45.89946265300375,    lon: 15.94482091926767,    alt: 579,  },
-  {    id: 28,    name: "Grmoščica",    lat: 45.81692484023739,    lon: 15.92419321766124,    alt: 239,  },
-  {    id: 29,    name: "Trg Francuske Republike",    lat: 45.81050656334719,    lon: 15.95553638845962,    alt: 0,  },
+  {
+    id: 21,
+    name: "Cibona",
+    lat: 45.803249057020885,
+    lon: 15.96347793271185,
+    alt: 92,
+  },
+  {
+    id: 22,
+    name: "Zagrepčanka",
+    lat: 45.798528643549396,
+    lon: 15.96245585283698,
+    alt: 95,
+  },
+  {
+    id: 23,
+    name: "Vjesnik",
+    lat: 45.793551576662246,
+    lon: 15.959205695046405,
+    alt: 67,
+  },
+  {
+    id: 24,
+    name: "Jelenovac",
+    lat: 45.82741901993836,
+    lon: 15.956039702679561,
+    alt: 135,
+  },
+  {
+    id: 25,
+    name: "Dom sportova",
+    lat: 45.80736039531922,
+    lon: 15.951976431579737,
+    alt: 0,
+  },
+  {
+    id: 26,
+    name: "Sljeme",
+    lat: 45.89946265300375,
+    lon: 15.94482091926767,
+    alt: 1033,
+  },
+  {
+    id: 27,
+    name: "Medvedgrad",
+    lat: 45.89946265300375,
+    lon: 15.94482091926767,
+    alt: 579,
+  },
+  {
+    id: 28,
+    name: "Grmoščica",
+    lat: 45.81692484023739,
+    lon: 15.92419321766124,
+    alt: 239,
+  },
+  {
+    id: 29,
+    name: "Trg Francuske Republike",
+    lat: 45.81050656334719,
+    lon: 15.95553638845962,
+    alt: 0,
+  },
   { id: 30, name: "Otok ljubavi", lat: 45.779416, lon: 15.93489, alt: 7 },
   { id: 31, name: "Otok veslača", lat: 45.778193, lon: 15.93373, alt: 10 },
   { id: 32, name: "Otok Trešnjevka", lat: 45.782458, lon: 15.918919, alt: 10 },
-  {    id: 33,    name: "Otok Univerzijade",    lat: 45.784486,    lon: 15.914094,    alt: 15,  },
-  {    id: 34,    name: "Otok hrvatske mladeži",    lat: 45.778619,    lon: 15.925837,    alt: 14,  },
+  {
+    id: 33,
+    name: "Otok Univerzijade",
+    lat: 45.784486,
+    lon: 15.914094,
+    alt: 15,
+  },
+  {
+    id: 34,
+    name: "Otok hrvatske mladeži",
+    lat: 45.778619,
+    lon: 15.925837,
+    alt: 14,
+  },
   { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 },
 ];
 
@@ -97,9 +169,10 @@ export default function ARBetaView() {
   const [gestureMode, setGestureMode] = useState<GestureMode>(null);
   const [isGestureActive, setIsGestureActive] = useState(false);
 
-  // Refs for tracking changes - MOVED TO COMPONENT BODY
+  // Refs for tracking changes
   const lastOrientationRef = useRef({ x: 0, y: 0, z: 0, w: 1 });
   const lastLocationRef = useRef<SensorSnapshot | null>(null);
+  const logCountRef = useRef(0);
 
   // Initialize gesture controller
   useEffect(() => {
@@ -189,6 +262,11 @@ export default function ARBetaView() {
   // Process POIs
   useEffect(() => {
     if (!userLocation) return;
+
+    Dlog(
+      `📍 Processing ${POIS.length} POIs at: ${userLocation.lat}, ${userLocation.lon}`,
+    );
+
     const processed = POIS.map((poi) => {
       const enuPos = geoToENU(
         userLocation.lat,
@@ -199,6 +277,8 @@ export default function ARBetaView() {
         poi.alt,
       );
       const rotatedPos = rotateVector(enuPos, userLocation.orientation);
+      ///////////////////
+
       const distance = Math.hypot(rotatedPos.x, rotatedPos.y, rotatedPos.z);
       const poiBearing = calculateBearing(
         userLocation.lat,
@@ -206,6 +286,18 @@ export default function ARBetaView() {
         poi.lat,
         poi.lon,
       );
+
+      // Log first 5 POIs for debugging
+      if (poi.id <= 5) {
+        Dlog(`  POI ${poi.id}: ${poi.name}`);
+        Dlog(
+          `    pos: (${rotatedPos.x.toFixed(1)}, ${rotatedPos.y.toFixed(1)}, ${rotatedPos.z.toFixed(1)})`,
+        );
+        Dlog(
+          `    distance: ${distance.toFixed(0)}m, bearing: ${poiBearing.toFixed(0)}°`,
+        );
+      }
+
       return { ...poi, pos: rotatedPos, distance, bearing: poiBearing };
     });
     setPoiPositions(processed);
@@ -224,6 +316,20 @@ export default function ARBetaView() {
           minDistance,
           maxDistance,
         );
+
+        // Debug first few POIs
+        if (poi.id <= 3 && logCountRef.current % 10 === 0) {
+          Dlog(
+            `🔍 POI ${poi.id}: screen: (${screenPos.x.toFixed(1)}, ${screenPos.y.toFixed(1)})`,
+          );
+          Dlog(
+            `   visible: ${screenPos.visible}, clipped: ${screenPos.clipped}`,
+          );
+          Dlog(
+            `   clippedByDistance: ${screenPos.clippedByDistance}, depth: ${screenPos.depth}`,
+          );
+        }
+
         return {
           ...poi,
           screenPos,
@@ -237,11 +343,17 @@ export default function ARBetaView() {
         (poi) => poi.isVisible || poi.isOffscreen || poi.isDistanceClipped,
       );
 
-    // Silent - no logging
+    // Throttled log
+    logCountRef.current++;
+    if (logCountRef.current % 20 === 0) {
+      const visible = result.filter((p) => p.isVisible);
+      Dlog(`📍 Visible: ${visible.length}/${result.length}`);
+    }
+
     return result;
   }, [poiPositions, fov, minDistance, maxDistance]);
 
-  // Sensor subscription - track orientation continuously
+  // Sensor subscription
   useEffect(() => {
     if (!isReady) return;
 
@@ -250,10 +362,6 @@ export default function ARBetaView() {
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
-
-      console.log(
-        `🧭 Orientation: (${snapshot.orientation.x.toFixed(3)}, ${snapshot.orientation.y.toFixed(3)}, ${snapshot.orientation.z.toFixed(3)}, ${snapshot.orientation.w.toFixed(3)})`,
-      );
 
       const orient = snapshot.orientation;
       const lastOrient = lastOrientationRef.current;
@@ -285,6 +393,7 @@ export default function ARBetaView() {
 
       // Update if something changed
       if (locationChanged) {
+        Dlog(`📍 Location changed: ${snapshot.lat}, ${snapshot.lon}`);
         setUserLocation(snapshot);
         lastOrientationRef.current = { ...orient };
       } else if (orientChanged) {
@@ -328,7 +437,7 @@ export default function ARBetaView() {
               zoom={cameraZoom}
               onCameraReady={() => setCameraReady(true)}
               onMountError={(error) => {
-                console.error("Camera mount error:", error);
+                Elog("Camera mount error:", error);
                 setCameraReady(false);
               }}
               style={StyleSheet.absoluteFill}
@@ -337,10 +446,15 @@ export default function ARBetaView() {
 
           {/* AR Overlay */}
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+            {/* Debug counter - shows POI count */}
+            <SvgText x={10} y={30} fill="rgba(255,255,255,0.2)" fontSize={10}>
+              POIs: {projectedPOIs.filter((p) => p.isVisible).length} visible /{" "}
+              {projectedPOIs.length} total
+            </SvgText>
+
             {projectedPOIs.map((poi) => {
               const { x, y } = poi.screenPos;
 
-              // Skip if screen position is invalid
               if (x === 0 && y === 0 && !poi.isOffscreen) return null;
 
               const distanceRatio = Math.min(
