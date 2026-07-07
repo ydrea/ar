@@ -217,13 +217,28 @@ function calculateBearing(
 
 // ============ PROJECTION ============
 
+// sensors.ts - Fixed projectToScreen
+
 function projectToScreen(
   cameraPos: Vec3,
   width: number,
   height: number,
   fov: number,
 ): ScreenPosition {
-  const depth = -cameraPos.z;
+  // Use the 3D distance for depth
+  const depth = Math.hypot(cameraPos.x, cameraPos.y, cameraPos.z);
+
+  // Check if behind camera
+  if (cameraPos.z > 0) {
+    return {
+      x: 0,
+      y: 0,
+      visible: false,
+      clipped: true,
+      clippedByDistance: null,
+      depth: depth,
+    };
+  }
 
   if (depth <= 0.1) {
     return {
@@ -242,17 +257,11 @@ function projectToScreen(
 
   // FOV in degrees, convert to radians
   const fovRad = (fov * Math.PI) / 180;
-
-  // Calculate focal length correctly
-  // For perspective projection: screen_coord = (camera_coord / depth) * focal_length
-  // focal_length = (screen_width/2) / tan(fov/2)
   const focalLength = width / 2 / Math.tan(fovRad / 2);
 
-  // Project to NDC then to screen coordinates
   const screenX = width / 2 + (correctedX / depth) * focalLength;
-  const screenY = height / 2 - (correctedY / depth) * focalLength; // Y is inverted in screen space
+  const screenY = height / 2 - (correctedY / depth) * focalLength;
 
-  // Check if within screen bounds (with margin)
   const margin = 200;
   const visible =
     screenX >= -margin &&
@@ -269,7 +278,6 @@ function projectToScreen(
     depth: depth,
   };
 }
-
 /**
  * Project a camera-space position to screen coordinates with distance clipping
  *
@@ -282,9 +290,11 @@ function projectToScreen(
  * @param maxDistance - Maximum visible RADIAL distance (meters)
  * @returns ScreenPosition with clipping information
  */
+// sensors.ts - Fixed projectToScreenWithClipping
+
 function projectToScreenWithClipping(
   cameraPos: Vec3,
-  trueDistance: number, // ← NEW: pass true distance separately
+  trueDistance: number,
   width: number,
   height: number,
   fov: number,
@@ -299,7 +309,7 @@ function projectToScreenWithClipping(
       visible: false,
       clipped: true,
       clippedByDistance: "min",
-      depth: cameraPos.z,
+      depth: trueDistance,
     };
   }
 
@@ -310,36 +320,42 @@ function projectToScreenWithClipping(
       visible: false,
       clipped: true,
       clippedByDistance: "max",
-      depth: cameraPos.z,
+      depth: trueDistance,
     };
   }
 
-  // Use PROJECTION DEPTH for perspective projection
-  const depth = cameraPos.z;
-
-  // Check if behind camera
-  if (depth <= 0.1) {
+  // Check if POI is behind camera
+  if (cameraPos.z > 0) {
     return {
       x: 0,
       y: 0,
       visible: false,
       clipped: true,
       clippedByDistance: null,
-      depth: depth,
+      depth: trueDistance,
     };
   }
 
-  // Project to screen
-  const correctedX = -cameraPos.y;
-  const correctedY = -cameraPos.x;
+  // Use TRUE DISTANCE for perspective projection
+  const depth = trueDistance;
 
+  // Calculate focal length
   const fovRad = (fov * Math.PI) / 180;
   const focalLength = width / 2 / Math.tan(fovRad / 2);
 
-  const screenX = width / 2 + (correctedX / depth) * focalLength;
-  const screenY = height / 2 - (correctedY / depth) * focalLength;
+  // Project
+  const correctedX = -cameraPos.y;
+  const correctedY = -cameraPos.x;
 
-  // Check screen bounds
+  const screenX = width / 2 + (correctedX / depth) * focalLength;
+
+  // FIX: Use the same focal length but adjust for aspect ratio
+  // Since the screen is wider than tall, the vertical FOV is smaller
+  const verticalFov = fov / (width / height); // Adjust for aspect ratio
+  const verticalFocalLength =
+    height / 2 / Math.tan((verticalFov * Math.PI) / 180 / 2);
+  const screenY = height / 2 - (correctedY / depth) * verticalFocalLength;
+
   const margin = 200;
   const visible =
     screenX >= -margin &&
@@ -357,7 +373,6 @@ function projectToScreenWithClipping(
     radialDistance: trueDistance,
   };
 }
-
 // ============ EXPORTS ============
 
 export {

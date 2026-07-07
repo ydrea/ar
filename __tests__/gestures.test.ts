@@ -1,5 +1,5 @@
 // __tests__/gestures.test.ts
-import { AR_CONSTANTS } from "@/cumquat/constants";
+import { AR_CONSTANTS } from "../cumquat/constants";
 import { ARGestureController } from "@/cumquat/gestures/ArGestureControler";
 
 describe("ARGestureController", () => {

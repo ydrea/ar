@@ -28,6 +28,7 @@ import {
   LimitType,
 } from "@/cumquat/gestures/ArGestureControler";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
+import { Tlog } from "@/utils/tlog";
 
 const { width, height } = Dimensions.get("window");
 
@@ -251,7 +252,7 @@ export default function ARBetaView() {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
 
-      console.log(
+      Tlog(
         `🧭 Orientation: (${snapshot.orientation.x.toFixed(3)}, ${snapshot.orientation.y.toFixed(3)}, ${snapshot.orientation.z.toFixed(3)}, ${snapshot.orientation.w.toFixed(3)})`,
       );
 

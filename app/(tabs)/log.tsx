@@ -12,7 +12,7 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import { CameraView, CameraType } from "expo-camera";
-import { Svg, Line, Text as SvgText } from "react-native-svg";
+import { Circle, Svg, Line, Text as SvgText } from "react-native-svg";
 import {
   projectToScreenWithClipping,
   sensorHub,
@@ -141,11 +141,16 @@ const POIS = [
     alt: 14,
   },
   { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 },
+  // Add this to your POIS array temporarily
+  { id: 999, name: "TEST", lat: 45.8005, lon: 15.9563, alt: 1 },
 ];
 
 const normalizeAngle = (deg: number): number => ((deg % 360) + 360) % 360;
 
 export default function ARBetaView() {
+  // At the top of your component
+  console.log(`📱 Screen: ${width}x${height}, aspect: ${width / height}`);
+
   const cameraRef = useRef<any>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<CameraType>("back");
@@ -175,30 +180,32 @@ export default function ARBetaView() {
   const logCountRef = useRef(0);
 
   // Initialize gesture controller
+  // In log.tsx - Fix the useEffect callback types
+
   useEffect(() => {
     gestureController.current.setCallbacks({
-      onMinDistanceChange: (newMin, isRB) => {
+      onMinDistanceChange: (newMin: number, isRB: boolean) => {
         setMinDistance(newMin);
         if (isRB) {
           setIsRubberBanding(true);
           setActiveLimit("min");
         }
       },
-      onMaxDistanceChange: (newMax, isRB) => {
+      onMaxDistanceChange: (newMax: number, isRB: boolean) => {
         setMaxDistance(newMax);
         if (isRB) {
           setIsRubberBanding(true);
           setActiveLimit("max");
         }
       },
-      onCameraZoomChange: (newZoom, isRB) => {
+      onCameraZoomChange: (newZoom: number, isRB: boolean) => {
         setCameraZoom(newZoom);
         if (isRB) {
           setIsRubberBanding(true);
           setActiveLimit("zoom");
         }
       },
-      onFOVChange: (newFOV, isRB) => {
+      onFOVChange: (newFOV: number, isRB: boolean) => {
         setFOV(newFOV);
         if (isRB) {
           setIsRubberBanding(true);
@@ -210,7 +217,7 @@ export default function ARBetaView() {
           setRubberBandIntensity(Math.min(1, excess / 20));
         }
       },
-      onLimitHit: (limit, excess) => {
+      onLimitHit: (limit: LimitType, excess: number) => {
         setActiveLimit(limit);
         setIsRubberBanding(true);
         setRubberBandIntensity(Math.min(1, excess / 500));
@@ -220,11 +227,11 @@ export default function ARBetaView() {
         setRubberBandIntensity(0);
         setActiveLimit(null);
       },
-      onGestureStart: (mode) => {
+      onGestureStart: (mode: GestureMode) => {
         setGestureMode(mode);
         setIsGestureActive(true);
       },
-      onGestureUpdate: (mode, state) => {
+      onGestureUpdate: (mode: GestureMode, state: any) => {
         setGestureMode(mode);
         if (state.min !== undefined) setMinDistance(state.min);
         if (state.max !== undefined) setMaxDistance(state.max);
@@ -287,16 +294,16 @@ export default function ARBetaView() {
         poi.lon,
       );
 
-      // Log first 5 POIs for debugging
-      if (poi.id <= 5) {
-        Dlog(`  POI ${poi.id}: ${poi.name}`);
-        Dlog(
-          `    pos: (${rotatedPos.x.toFixed(1)}, ${rotatedPos.y.toFixed(1)}, ${rotatedPos.z.toFixed(1)})`,
-        );
-        Dlog(
-          `    distance: ${distance.toFixed(0)}m, bearing: ${poiBearing.toFixed(0)}°`,
-        );
-      }
+      // // Log first 5 POIs for debugging
+      // if (poi.id <= 5) {
+      //   Dlog(`  POI ${poi.id}: ${poi.name}`);
+      //   Dlog(
+      //     `    pos: (${rotatedPos.x.toFixed(1)}, ${rotatedPos.y.toFixed(1)}, ${rotatedPos.z.toFixed(1)})`,
+      //   );
+      //   Dlog(
+      //     `    distance: ${distance.toFixed(0)}m, bearing: ${poiBearing.toFixed(0)}°`,
+      //   );
+      // }
 
       return { ...poi, pos: rotatedPos, distance, bearing: poiBearing };
     });
@@ -317,18 +324,18 @@ export default function ARBetaView() {
           maxDistance,
         );
 
-        // Debug first few POIs
-        if (poi.id <= 3 && logCountRef.current % 10 === 0) {
-          Dlog(
-            `🔍 POI ${poi.id}: screen: (${screenPos.x.toFixed(1)}, ${screenPos.y.toFixed(1)})`,
-          );
-          Dlog(
-            `   visible: ${screenPos.visible}, clipped: ${screenPos.clipped}`,
-          );
-          Dlog(
-            `   clippedByDistance: ${screenPos.clippedByDistance}, depth: ${screenPos.depth}`,
-          );
-        }
+        // // Debug first few POIs
+        // if (poi.id <= 3 && logCountRef.current % 10 === 0) {
+        //   Dlog(
+        //     `🔍 POI ${poi.id}: screen: (${screenPos.x.toFixed(1)}, ${screenPos.y.toFixed(1)})`,
+        //   );
+        //   Dlog(
+        //     `   visible: ${screenPos.visible}, clipped: ${screenPos.clipped}`,
+        //   );
+        //   Dlog(
+        //     `   clippedByDistance: ${screenPos.clippedByDistance}, depth: ${screenPos.depth}`,
+        //   );
+        // }
 
         return {
           ...poi,
@@ -343,11 +350,21 @@ export default function ARBetaView() {
         (poi) => poi.isVisible || poi.isOffscreen || poi.isDistanceClipped,
       );
 
-    // Throttled log
-    logCountRef.current++;
-    if (logCountRef.current % 20 === 0) {
-      const visible = result.filter((p) => p.isVisible);
-      Dlog(`📍 Visible: ${visible.length}/${result.length}`);
+    // // Throttled log
+    // logCountRef.current++;
+    // if (logCountRef.current % 20 === 0) {
+    //   const visible = result.filter((p) => p.isVisible);
+    //   Dlog(`📍 Visible: ${visible.length}/${result.length}`);
+    // }
+
+    // In the projectedPOIs useMemo, after calculating result:
+    const visiblePOIs = result.filter((p) => p.isVisible);
+    if (visiblePOIs.length > 0 && logCountRef.current % 5 === 0) {
+      visiblePOIs.forEach((poi) => {
+        Dlog(
+          `📍 ${poi.name}: screen (${poi.screenPos.x.toFixed(0)}, ${poi.screenPos.y.toFixed(0)})`,
+        );
+      });
     }
 
     return result;
@@ -445,9 +462,16 @@ export default function ARBetaView() {
           )}
 
           {/* AR Overlay */}
+
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-            {/* Debug counter - shows POI count */}
-            <SvgText x={10} y={30} fill="rgba(255,255,255,0.2)" fontSize={10}>
+            {/* Debug counter */}
+            <SvgText
+              x={10}
+              y={30}
+              fill="rgba(255,255,255,0.9)"
+              fontSize={14}
+              fontWeight="bold"
+            >
               POIs: {projectedPOIs.filter((p) => p.isVisible).length} visible /{" "}
               {projectedPOIs.length} total
             </SvgText>
@@ -457,41 +481,41 @@ export default function ARBetaView() {
 
               if (x === 0 && y === 0 && !poi.isOffscreen) return null;
 
-              const distanceRatio = Math.min(
-                1,
-                Math.max(
-                  0,
-                  (poi.distance - minDistance) /
-                    (Math.min(maxDistance, 5000) - minDistance),
-                ),
-              );
-              const opacity = 0.2 + (1 - distanceRatio) * 0.8;
-              const fontSize = 8 + (1 - distanceRatio) * 8;
+              // Simple distance-based opacity
+              const distanceRatio = Math.min(1, poi.distance / 2000);
+              const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
+              const fontSize = Math.max(10, 16 - distanceRatio * 6);
 
               // VISIBLE POI
               if (poi.isVisible) {
                 return (
                   <React.Fragment key={poi.id}>
+                    {/* 🟥 RED DOT - to confirm position */}
+                    <Circle cx={x} cy={y} r={10} fill="rgba(255, 0, 0, 0.8)" />
+
+                    {/* POI Name */}
                     <SvgText
                       x={x}
-                      y={y}
+                      y={y - 15}
                       fill={`rgba(255, 255, 255, ${opacity})`}
                       fontSize={fontSize}
-                      fontWeight="600"
+                      fontWeight="bold"
                       textAnchor="middle"
-                      stroke="rgba(0, 0, 0, 0.3)"
-                      strokeWidth={2}
+                      stroke="rgba(0, 0, 0, 0.6)"
+                      strokeWidth={3}
                     >
                       {poi.name}
                     </SvgText>
+
+                    {/* Distance */}
                     <SvgText
                       x={x}
                       y={y + fontSize + 6}
-                      fill={`rgba(255, 255, 255, ${opacity * 0.7})`}
+                      fill={`rgba(200, 200, 255, ${opacity * 0.7})`}
                       fontSize={Math.max(8, fontSize - 4)}
                       textAnchor="middle"
-                      stroke="rgba(0, 0, 0, 0.2)"
-                      strokeWidth={1}
+                      stroke="rgba(0, 0, 0, 0.3)"
+                      strokeWidth={2}
                     >
                       {poi.distance < 1000
                         ? `${Math.round(poi.distance)}m`
@@ -501,7 +525,7 @@ export default function ARBetaView() {
                 );
               }
 
-              // OFFSCREEN TRIANGLES
+              // OFFSCREEN TRIANGLES (same as before)
               const isTooFar =
                 poi.isDistanceClipped &&
                 poi.screenPos.clippedByDistance === "max";
@@ -518,8 +542,8 @@ export default function ARBetaView() {
                 const angle = Math.atan2(dy, dx);
 
                 let triX: number, triY: number, triAngle: number;
-                let strokeColor = `rgba(255, 255, 255, ${Math.max(0.3, opacity)})`;
-                const triSize = 6 + (1 - distanceRatio) * 8;
+                let strokeColor = `rgba(255, 255, 255, ${Math.max(0.4, opacity)})`;
+                const triSize = 8 + (1 - distanceRatio) * 6;
 
                 if (isTooFar) {
                   triX = centerX + Math.cos(angle) * (width / 2 - 40);
@@ -555,7 +579,6 @@ export default function ARBetaView() {
               return null;
             })}
           </Svg>
-
           {/* Center Reticle */}
           <View style={styles.reticle}>
             <View style={styles.reticleDot} />

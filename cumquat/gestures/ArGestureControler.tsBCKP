@@ -3,7 +3,6 @@ import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { Dimensions } from "react-native";
 import { AR_CONSTANTS } from "../constants";
-import { Tlog } from "@/utils/tlog";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -27,7 +26,6 @@ interface GestureCallbacks {
   onGestureEnd: (mode: GestureMode, state: any) => void;
 }
 
-// Internal state type for type safety
 interface GestureState {
   minDistance: number;
   maxDistance: number;
@@ -35,10 +33,20 @@ interface GestureState {
   fov: number;
 }
 
+interface GestureTracking {
+  gestureMode: GestureMode;
+  movingFinger: "top" | "bottom" | "both" | null;
+  baseMinDist: number;
+  baseMaxDist: number;
+  baseCameraZoom: number;
+  baseFOV: number;
+  isRubberBanding: boolean;
+  activeLimit: LimitType;
+}
+
 export class ARGestureController {
   private callbacks: GestureCallbacks | null = null;
 
-  // Current state
   private state: GestureState = {
     minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
     maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
@@ -46,55 +54,21 @@ export class ARGestureController {
     fov: AR_CONSTANTS.FOV.DEFAULT,
   };
 
-  // Gesture tracking
-  private startTopY = 0;
-  private startBottomY = 0;
-  private startLeftX = 0;
-  private startRightX = 0;
-  private topTouchId: number | null = null;
-  private bottomTouchId: number | null = null;
-  private leftTouchId: number | null = null;
-  private rightTouchId: number | null = null;
-  private gestureMode: GestureMode = null;
-  private movingFinger: "top" | "bottom" | "both" | null = null;
-
-  // Base values for delta calculations
-  private baseMinDist = 0;
-  private baseMaxDist = 0;
-  private baseCameraZoom = 0;
-  private baseFOV = 0;
-
-  // Rubber band state
-  private isRubberBanding = false;
-  private activeLimit: LimitType = null;
-
-  // Sensitivity
   private readonly VERTICAL_PIXEL_TO_METER = 400;
   private readonly VERTICAL_PIXEL_TO_ZOOM = 0.003;
   private readonly HORIZONTAL_PIXEL_TO_FOV = 0.2;
   private readonly RUBBER_BAND_FACTOR = 0.3;
 
-  // ============ CLAMP, NORMALIZE, VALIDATE ============
-
-  /**
-   * Clamp a value between min and max
-   */
   private clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
   }
 
-  /**
-   * Normalize state values to ensure consistency
-   * - Ensures min <= max
-   * - Clamps to valid ranges
-   */
   private normalizeState(
     min: number,
     max: number,
     zoom: number,
     fov: number,
   ): GestureState {
-    // Ensure min <= max
     const normalizedMin = Math.min(min, max);
     const normalizedMax = Math.max(min, max);
 
@@ -106,19 +80,12 @@ export class ARGestureController {
     };
   }
 
-  /**
-   * Validate and clamp all state values to their valid ranges
-   * This is the main entry point for safe state updates
-   */
-  // In ArGestureControler.ts - update validateState
-
   private validateState(
     min: number,
     max: number,
     zoom: number,
     fov: number,
   ): GestureState {
-    // Handle NaN and Infinity - fall back to defaults
     const safeMin =
       isNaN(min) || !isFinite(min) ? AR_CONSTANTS.DISTANCE.DEFAULT_MIN : min;
     const safeMax =
@@ -127,10 +94,8 @@ export class ARGestureController {
     const safeFov =
       isNaN(fov) || !isFinite(fov) ? AR_CONSTANTS.FOV.DEFAULT : fov;
 
-    // First normalize (ensure ordering)
     const normalized = this.normalizeState(safeMin, safeMax, safeZoom, safeFov);
 
-    // Then clamp each value to its valid range
     const clampedMin = this.clamp(
       normalized.minDistance,
       AR_CONSTANTS.DISTANCE.MIN,
@@ -144,18 +109,15 @@ export class ARGestureController {
     );
 
     const clampedZoom = this.clamp(normalized.cameraZoom, 0, 1);
-
     const clampedFov = this.clamp(
       normalized.fov,
       AR_CONSTANTS.FOV.MIN,
       AR_CONSTANTS.FOV.MAX,
     );
 
-    // Ensure min < max with margin (but don't exceed valid ranges)
     let finalMin = Math.min(clampedMin, clampedMax - 100);
     let finalMax = Math.max(clampedMin + 100, clampedMax);
 
-    // Make sure we don't go below MIN or above MAX
     finalMin = Math.max(AR_CONSTANTS.DISTANCE.MIN, finalMin);
     finalMax = Math.min(AR_CONSTANTS.DISTANCE.MAX, finalMax);
 
@@ -167,32 +129,15 @@ export class ARGestureController {
     };
   }
 
-  /**
-   * Safe updateState with validation and clamping
-   * Use this for committed state updates (after gesture ends)
-   */
   updateState(min: number, max: number, zoom: number, fov: number) {
     const validated = this.validateState(min, max, zoom, fov);
     this.state = validated;
-
-    // Log any corrections for debugging
-    if (min !== validated.minDistance || max !== validated.maxDistance) {
-      Tlog(
-        `🔄 State normalized: min=${validated.minDistance}, max=${validated.maxDistance}`,
-      );
-    }
   }
 
-  /**
-   * Get the current validated state
-   */
   getState() {
     return { ...this.state };
   }
 
-  /**
-   * Get individual values with validation
-   */
   getMinDistance(): number {
     return this.clamp(
       this.state.minDistance,
@@ -220,8 +165,6 @@ export class ARGestureController {
       AR_CONSTANTS.FOV.MAX,
     );
   }
-
-  // ... rest of the class methods ...
 
   setCallbacks(callbacks: GestureCallbacks) {
     this.callbacks = callbacks;
@@ -258,443 +201,6 @@ export class ARGestureController {
     return { newValue, isRubberBanding, hitLimit };
   }
 
-  createGesture() {
-    const self = this; // Capture 'this' context for use in gesture callbacks
-    const callbacks = this.callbacks; // Capture callbacks for use in gesture callbacks
-
-    // Use Pan gesture with proper touch events
-    return Gesture.Pan()
-      .minPointers(2)
-      .maxPointers(2)
-      .activateAfterLongPress(0)
-      .onTouchesDown((event) => {
-        if (event.allTouches.length !== 2) return;
-
-        const [touch1, touch2] = event.allTouches;
-
-        // Determine if gesture is more horizontal or vertical
-        const deltaX = Math.abs(touch1.x - touch2.x);
-        const deltaY = Math.abs(touch1.y - touch2.y);
-
-        if (deltaX > deltaY * 1.5) {
-          // Horizontal pinch - FOV control
-          this.gestureMode = "horizontal";
-
-          if (touch1.x < touch2.x) {
-            this.startLeftX = touch1.x;
-            this.leftTouchId = touch1.id;
-            this.startRightX = touch2.x;
-            this.rightTouchId = touch2.id;
-          } else {
-            this.startLeftX = touch2.x;
-            this.leftTouchId = touch2.id;
-            this.startRightX = touch1.x;
-            this.rightTouchId = touch1.id;
-          }
-
-          this.baseFOV = this.state.fov;
-          if (this.callbacks) {
-            runOnJS(this.callbacks.onGestureStart.bind(this.callbacks))(
-              "horizontal",
-            );
-          }
-          Tlog(`🎯 Horizontal pinch - FOV control`);
-        } else {
-          // Vertical pinch - Distance control
-          if (touch1.y < touch2.y) {
-            this.startTopY = touch1.y;
-            this.topTouchId = touch1.id;
-            this.startBottomY = touch2.y;
-            this.bottomTouchId = touch2.id;
-          } else {
-            this.startTopY = touch2.y;
-            this.topTouchId = touch2.id;
-            this.startBottomY = touch1.y;
-            this.bottomTouchId = touch1.id;
-          }
-
-          this.baseMinDist = this.state.minDistance;
-          this.baseMaxDist = this.state.maxDistance;
-          this.baseCameraZoom = this.state.cameraZoom;
-          this.gestureMode = null;
-          this.movingFinger = null;
-
-          Tlog(`🎯 Vertical pinch started`);
-        }
-
-        this.isRubberBanding = false;
-        this.activeLimit = null;
-      })
-      .onTouchesMove((event) => {
-        if (event.allTouches.length !== 2) return;
-
-        if (this.gestureMode === "horizontal") {
-          // Horizontal FOV control
-          const leftTouch = event.allTouches.find(
-            (t) => t.id === this.leftTouchId,
-          );
-          const rightTouch = event.allTouches.find(
-            (t) => t.id === this.rightTouchId,
-          );
-
-          if (!leftTouch || !rightTouch) return;
-
-          const leftDeltaX = leftTouch.x - this.startLeftX;
-          const rightDeltaX = rightTouch.x - this.startRightX;
-
-          const pinchDelta = (rightDeltaX - leftDeltaX) / 2;
-          const fovDelta = pinchDelta * this.HORIZONTAL_PIXEL_TO_FOV;
-
-          let rawFOV = this.baseFOV + fovDelta;
-
-          const { newValue, isRubberBanding, hitLimit } =
-            this.checkLimitsAndApplyRubberBand(
-              rawFOV,
-              AR_CONSTANTS.FOV.MIN,
-              AR_CONSTANTS.FOV.MAX,
-              "fov",
-            );
-
-          this.state.fov = newValue;
-          this.isRubberBanding = isRubberBanding;
-
-          if (hitLimit && !this.activeLimit) {
-            this.activeLimit = hitLimit;
-            const excess = Math.abs(
-              this.state.fov -
-                (this.state.fov < AR_CONSTANTS.FOV.MIN
-                  ? AR_CONSTANTS.FOV.MIN
-                  : AR_CONSTANTS.FOV.MAX),
-            );
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onLimitHit.bind(this.callbacks))(
-                hitLimit,
-                excess,
-              );
-            }
-          } else if (!hitLimit && this.activeLimit) {
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onLimitRelease.bind(this.callbacks))(
-                this.activeLimit,
-              );
-            }
-            this.activeLimit = null;
-          }
-
-          if (this.callbacks) {
-            runOnJS(this.callbacks.onFOVChange.bind(this.callbacks))(
-              this.state.fov,
-              this.isRubberBanding,
-            );
-            runOnJS(this.callbacks.onGestureUpdate.bind(this.callbacks))(
-              this.gestureMode,
-              {
-                fov: this.state.fov,
-                isRubberBanding: this.isRubberBanding,
-              },
-            );
-          }
-        } else {
-          // Vertical gesture
-          const topTouch = event.allTouches.find(
-            (t) => t.id === this.topTouchId,
-          );
-          const bottomTouch = event.allTouches.find(
-            (t) => t.id === this.bottomTouchId,
-          );
-
-          if (!topTouch || !bottomTouch) return;
-
-          const topDeltaY = topTouch.y - this.startTopY;
-          const bottomDeltaY = bottomTouch.y - this.startBottomY;
-
-          const isTopMoving = Math.abs(topDeltaY) > 10;
-          const isBottomMoving = Math.abs(bottomDeltaY) > 10;
-
-          if (this.gestureMode === null) {
-            if (isTopMoving && !isBottomMoving) {
-              this.gestureMode = "adjustMax";
-              this.movingFinger = "top";
-              if (this.callbacks) {
-                runOnJS(this.callbacks.onGestureStart.bind(this.callbacks))(
-                  "adjustMax",
-                );
-              }
-              Tlog(`🎯 Adjusting MAX distance (top finger)`);
-            } else if (isBottomMoving && !isTopMoving) {
-              this.gestureMode = "adjustMin";
-              this.movingFinger = "bottom";
-              if (this.callbacks) {
-                runOnJS(this.callbacks.onGestureStart.bind(this.callbacks))(
-                  "adjustMin",
-                );
-              }
-              Tlog(`🎯 Adjusting MIN distance (bottom finger)`);
-            } else if (isTopMoving && isBottomMoving) {
-              this.gestureMode = "symmetric";
-              this.movingFinger = "both";
-              if (this.callbacks) {
-                runOnJS(this.callbacks.onGestureStart.bind(this.callbacks))(
-                  "symmetric",
-                );
-              }
-              Tlog(`🎯 Symmetric zoom (both fingers)`);
-            }
-          }
-
-          let isRubberBanding = false;
-          let hitLimit: LimitType | null = null;
-
-          if (this.gestureMode === "adjustMax") {
-            const maxDelta = -topDeltaY;
-            let rawMax =
-              this.baseMaxDist + maxDelta * this.VERTICAL_PIXEL_TO_METER;
-
-            const maxResult = this.checkLimitsAndApplyRubberBand(
-              rawMax,
-              this.state.minDistance + 1000,
-              AR_CONSTANTS.DISTANCE.MAX,
-              "max",
-            );
-            this.state.maxDistance = maxResult.newValue;
-            isRubberBanding = maxResult.isRubberBanding;
-            hitLimit = maxResult.hitLimit;
-
-            let rawZoom =
-              this.baseCameraZoom +
-              maxDelta * this.VERTICAL_PIXEL_TO_ZOOM * 0.5;
-            const zoomResult = this.checkLimitsAndApplyRubberBand(
-              rawZoom,
-              0,
-              1,
-              "zoom",
-            );
-            this.state.cameraZoom = zoomResult.newValue;
-            if (zoomResult.isRubberBanding) isRubberBanding = true;
-
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onMaxDistanceChange.bind(this.callbacks))(
-                this.state.maxDistance,
-                isRubberBanding,
-              );
-              runOnJS(this.callbacks.onCameraZoomChange.bind(this.callbacks))(
-                this.state.cameraZoom,
-                isRubberBanding,
-              );
-            }
-          } else if (this.gestureMode === "adjustMin") {
-            const minDelta = -bottomDeltaY;
-            let rawMin =
-              this.baseMinDist + minDelta * this.VERTICAL_PIXEL_TO_METER;
-
-            const minResult = this.checkLimitsAndApplyRubberBand(
-              rawMin,
-              AR_CONSTANTS.DISTANCE.MIN,
-              this.state.maxDistance - 1000,
-              "min",
-            );
-            this.state.minDistance = minResult.newValue;
-            isRubberBanding = minResult.isRubberBanding;
-            hitLimit = minResult.hitLimit;
-
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
-                this.state.minDistance,
-                isRubberBanding,
-              );
-            }
-          } else if (this.gestureMode === "symmetric") {
-            const avgDeltaY = (topDeltaY + bottomDeltaY) / 2;
-            const zoomDelta = -avgDeltaY;
-
-            let rawZoom =
-              this.baseCameraZoom + zoomDelta * this.VERTICAL_PIXEL_TO_ZOOM;
-            const zoomResult = this.checkLimitsAndApplyRubberBand(
-              rawZoom,
-              0,
-              1,
-              "zoom",
-            );
-            this.state.cameraZoom = zoomResult.newValue;
-            isRubberBanding = zoomResult.isRubberBanding;
-            hitLimit = zoomResult.hitLimit;
-
-            let rawMin =
-              this.baseMinDist + zoomDelta * this.VERTICAL_PIXEL_TO_METER * 0.2;
-            let rawMax =
-              this.baseMaxDist + zoomDelta * this.VERTICAL_PIXEL_TO_METER * 0.3;
-
-            const minResult = this.checkLimitsAndApplyRubberBand(
-              rawMin,
-              AR_CONSTANTS.DISTANCE.MIN,
-              this.state.maxDistance - 1000,
-              "min",
-            );
-            const maxResult = this.checkLimitsAndApplyRubberBand(
-              rawMax,
-              this.state.minDistance + 1000,
-              AR_CONSTANTS.DISTANCE.MAX,
-              "max",
-            );
-
-            this.state.minDistance = minResult.newValue;
-            this.state.maxDistance = maxResult.newValue;
-            if (minResult.isRubberBanding || maxResult.isRubberBanding)
-              isRubberBanding = true;
-
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
-                this.state.minDistance,
-                isRubberBanding,
-              );
-              runOnJS(this.callbacks.onMaxDistanceChange.bind(this.callbacks))(
-                this.state.maxDistance,
-                isRubberBanding,
-              );
-              runOnJS(this.callbacks.onCameraZoomChange.bind(this.callbacks))(
-                this.state.cameraZoom,
-                isRubberBanding,
-              );
-            }
-          }
-
-          this.isRubberBanding = isRubberBanding;
-
-          if (hitLimit && !this.activeLimit) {
-            this.activeLimit = hitLimit;
-            const excess = this.getExcessForLimit(hitLimit);
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onLimitHit.bind(this.callbacks))(
-                hitLimit,
-                excess,
-              );
-            }
-          } else if (!hitLimit && this.activeLimit) {
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onLimitRelease.bind(this.callbacks))(
-                this.activeLimit,
-              );
-            }
-            this.activeLimit = null;
-          }
-
-          if (this.callbacks) {
-            runOnJS(this.callbacks.onGestureUpdate.bind(this.callbacks))(
-              this.gestureMode,
-              {
-                min: this.state.minDistance,
-                max: this.state.maxDistance,
-                zoom: this.state.cameraZoom,
-                isRubberBanding: this.isRubberBanding,
-              },
-            );
-          }
-        }
-      })
-      .onTouchesUp((event) => {
-        // On gesture end, validate and clamp the final state
-        if (this.gestureMode === "horizontal") {
-          let finalFOV = this.state.fov;
-          if (this.isRubberBanding) {
-            // Validate and clamp
-            const validated = this.validateState(
-              this.state.minDistance,
-              this.state.maxDistance,
-              this.state.cameraZoom,
-              this.state.fov,
-            );
-            finalFOV = validated.fov;
-            this.state.fov = finalFOV;
-
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onFOVChange.bind(this.callbacks))(
-                finalFOV,
-                false,
-              );
-            }
-          }
-
-          Tlog(`✅ Horizontal ended - FOV: ${finalFOV.toFixed(1)}°`);
-
-          if (this.gestureMode && this.callbacks) {
-            runOnJS(this.callbacks.onGestureEnd.bind(this.callbacks))(
-              this.gestureMode,
-              {
-                fov: finalFOV,
-              },
-            );
-          }
-        } else {
-          let finalMin = this.state.minDistance;
-          let finalMax = this.state.maxDistance;
-          let finalZoom = this.state.cameraZoom;
-
-          if (this.isRubberBanding) {
-            // Validate and clamp the final state
-            const validated = this.validateState(
-              this.state.minDistance,
-              this.state.maxDistance,
-              this.state.cameraZoom,
-              this.state.fov,
-            );
-            finalMin = validated.minDistance;
-            finalMax = validated.maxDistance;
-            finalZoom = validated.cameraZoom;
-
-            this.state.minDistance = finalMin;
-            this.state.maxDistance = finalMax;
-            this.state.cameraZoom = finalZoom;
-
-            if (this.callbacks) {
-              runOnJS(this.callbacks.onMinDistanceChange.bind(this.callbacks))(
-                finalMin,
-                false,
-              );
-              runOnJS(this.callbacks.onMaxDistanceChange.bind(this.callbacks))(
-                finalMax,
-                false,
-              );
-              runOnJS(this.callbacks.onCameraZoomChange.bind(this.callbacks))(
-                finalZoom,
-                false,
-              );
-            }
-          }
-
-          Tlog(
-            `✅ Vertical ended - Min: ${(finalMin / 1000).toFixed(1)}km, Max: ${(finalMax / 1000).toFixed(1)}km`,
-          );
-
-          if (this.gestureMode && this.callbacks) {
-            runOnJS(this.callbacks.onGestureEnd.bind(this.callbacks))(
-              this.gestureMode,
-              {
-                min: finalMin,
-                max: finalMax,
-                zoom: finalZoom,
-              },
-            );
-          }
-        }
-
-        // Reset state
-        this.topTouchId = null;
-        this.bottomTouchId = null;
-        this.leftTouchId = null;
-        this.rightTouchId = null;
-        this.gestureMode = null;
-        this.movingFinger = null;
-        this.isRubberBanding = false;
-
-        if (this.activeLimit && this.callbacks) {
-          runOnJS(this.callbacks.onLimitRelease.bind(this.callbacks))(
-            this.activeLimit,
-          );
-          this.activeLimit = null;
-        }
-      });
-  }
-
   private getExcessForLimit(limit: LimitType): number {
     switch (limit) {
       case "min":
@@ -716,4 +222,625 @@ export class ARGestureController {
         return 0;
     }
   }
+  ////////////////////////////////
+
+  ////////////////////////////////
+
+  createGesture() {
+    const callbacks = this.callbacks;
+
+    // Store constants as plain object for worklet access
+    const constants = {
+      FOV_MIN: AR_CONSTANTS.FOV.MIN,
+      FOV_MAX: AR_CONSTANTS.FOV.MAX,
+      DISTANCE_MIN: AR_CONSTANTS.DISTANCE.MIN,
+      DISTANCE_MAX: AR_CONSTANTS.DISTANCE.MAX,
+      VERTICAL_PIXEL_TO_METER: this.VERTICAL_PIXEL_TO_METER,
+      VERTICAL_PIXEL_TO_ZOOM: this.VERTICAL_PIXEL_TO_ZOOM,
+      HORIZONTAL_PIXEL_TO_FOV: this.HORIZONTAL_PIXEL_TO_FOV,
+      RUBBER_BAND_FACTOR: this.RUBBER_BAND_FACTOR,
+    };
+
+    // Create a COMPLETELY DETACHED object - NOT from this.state
+    const initialState = this.getState();
+    let state: GestureState = {
+      minDistance: initialState.minDistance,
+      maxDistance: initialState.maxDistance,
+      cameraZoom: initialState.cameraZoom,
+      fov: initialState.fov,
+    };
+
+    // Create tracking as a plain object
+    let tracking: GestureTracking = {
+      gestureMode: null,
+      movingFinger: null,
+      baseMinDist: state.minDistance,
+      baseMaxDist: state.maxDistance,
+      baseCameraZoom: state.cameraZoom,
+      baseFOV: state.fov,
+      isRubberBanding: false,
+      activeLimit: null,
+    };
+
+    // Helper to check limits
+    const checkLimits = (
+      value: number,
+      min: number,
+      max: number,
+      limit: LimitType,
+    ) => {
+      "worklet";
+      let newValue = value;
+      let isRubberBanding = false;
+      let hitLimit: LimitType | null = null;
+
+      if (value < min) {
+        isRubberBanding = true;
+        hitLimit = limit;
+        const excess = min - value;
+        const resistance =
+          1 - Math.min(0.8, Math.log10(1 + excess / 100) * 0.15);
+        newValue = min - excess * constants.RUBBER_BAND_FACTOR * resistance;
+      } else if (value > max) {
+        isRubberBanding = true;
+        hitLimit = limit;
+        const excess = value - max;
+        const resistance =
+          1 - Math.min(0.8, Math.log10(1 + excess / 100) * 0.15);
+        newValue = max + excess * constants.RUBBER_BAND_FACTOR * resistance;
+      }
+
+      return { newValue, isRubberBanding, hitLimit };
+    };
+
+    const getExcess = (limit: LimitType) => {
+      "worklet";
+      switch (limit) {
+        case "min":
+          return Math.max(0, constants.DISTANCE_MIN - state.minDistance);
+        case "max":
+          return Math.max(0, state.maxDistance - constants.DISTANCE_MAX);
+        case "zoom":
+          return Math.max(
+            0,
+            Math.abs(state.cameraZoom - (state.cameraZoom > 1 ? 1 : 0)),
+          );
+        case "fov":
+          if (state.fov < constants.FOV_MIN)
+            return constants.FOV_MIN - state.fov;
+          if (state.fov > constants.FOV_MAX)
+            return state.fov - constants.FOV_MAX;
+          return 0;
+        default:
+          return 0;
+      }
+    };
+
+    // Function to sync state back to class - called via runOnJS
+    const syncState = (s: GestureState) => {
+      this.state = { ...s };
+    };
+
+    return Gesture.Pan()
+      .minPointers(2)
+      .maxPointers(2)
+      .activateAfterLongPress(0)
+      .onStart(() => {
+        // Reset tracking state - MUTATE, don't reassign
+        tracking.gestureMode = null;
+        tracking.movingFinger = null;
+        tracking.isRubberBanding = false;
+        tracking.activeLimit = null;
+        tracking.baseMinDist = state.minDistance;
+        tracking.baseMaxDist = state.maxDistance;
+        tracking.baseCameraZoom = state.cameraZoom;
+        tracking.baseFOV = state.fov;
+
+        if (__DEV__) console.log(`🎯 Gesture started`);
+      })
+      .onUpdate((event) => {
+        const translationX = event.translationX || 0;
+        const translationY = event.translationY || 0;
+
+        // Detect gesture mode on first movement
+        if (tracking.gestureMode === null) {
+          const absX = Math.abs(translationX);
+          const absY = Math.abs(translationY);
+
+          if (absX > absY * 1.5 && absX > 20) {
+            tracking.gestureMode = "horizontal";
+            // Call runOnJS directly - NO wrapper functions
+            if (callbacks?.onGestureStart) {
+              runOnJS(callbacks.onGestureStart)("horizontal");
+            }
+            if (__DEV__) console.log(`🎯 Horizontal pinch - FOV control`);
+          } else if (absY > absX * 1.5 && absY > 20) {
+            tracking.gestureMode = "adjustMax";
+            tracking.movingFinger = "top";
+            if (callbacks?.onGestureStart) {
+              runOnJS(callbacks.onGestureStart)("adjustMax");
+            }
+            if (__DEV__) console.log(`🎯 Vertical pinch - distance control`);
+          }
+        }
+
+        // Handle the actual gesture updates
+        if (tracking.gestureMode === "horizontal") {
+          const fovDelta = translationX * constants.HORIZONTAL_PIXEL_TO_FOV;
+          let rawFOV = tracking.baseFOV + fovDelta;
+
+          const { newValue, isRubberBanding, hitLimit } = checkLimits(
+            rawFOV,
+            constants.FOV_MIN,
+            constants.FOV_MAX,
+            "fov",
+          );
+
+          state.fov = newValue;
+          tracking.isRubberBanding = isRubberBanding;
+
+          if (hitLimit && !tracking.activeLimit) {
+            tracking.activeLimit = hitLimit;
+            const excess = Math.abs(
+              state.fov -
+                (state.fov < constants.FOV_MIN
+                  ? constants.FOV_MIN
+                  : constants.FOV_MAX),
+            );
+            if (callbacks?.onLimitHit) {
+              runOnJS(callbacks.onLimitHit)(hitLimit, excess);
+            }
+          } else if (!hitLimit && tracking.activeLimit) {
+            if (callbacks?.onLimitRelease) {
+              runOnJS(callbacks.onLimitRelease)(tracking.activeLimit);
+            }
+            tracking.activeLimit = null;
+          }
+
+          if (callbacks?.onFOVChange) {
+            runOnJS(callbacks.onFOVChange)(state.fov, tracking.isRubberBanding);
+          }
+          if (callbacks?.onGestureUpdate) {
+            runOnJS(callbacks.onGestureUpdate)(tracking.gestureMode, {
+              fov: state.fov,
+              isRubberBanding: tracking.isRubberBanding,
+            });
+          }
+        } else if (tracking.gestureMode === "adjustMax") {
+          const maxDelta = -translationY;
+          let rawMax =
+            tracking.baseMaxDist + maxDelta * constants.VERTICAL_PIXEL_TO_METER;
+
+          const maxResult = checkLimits(
+            rawMax,
+            state.minDistance + 1000,
+            constants.DISTANCE_MAX,
+            "max",
+          );
+          state.maxDistance = maxResult.newValue;
+          let isRubberBanding = maxResult.isRubberBanding;
+          let hitLimit = maxResult.hitLimit;
+
+          let rawZoom =
+            tracking.baseCameraZoom +
+            maxDelta * constants.VERTICAL_PIXEL_TO_ZOOM * 0.5;
+          const zoomResult = checkLimits(rawZoom, 0, 1, "zoom");
+          state.cameraZoom = zoomResult.newValue;
+          if (zoomResult.isRubberBanding) isRubberBanding = true;
+
+          tracking.isRubberBanding = isRubberBanding;
+
+          if (hitLimit && !tracking.activeLimit) {
+            tracking.activeLimit = hitLimit;
+            const excess = getExcess(hitLimit);
+            if (callbacks?.onLimitHit) {
+              runOnJS(callbacks.onLimitHit)(hitLimit, excess);
+            }
+          } else if (!hitLimit && tracking.activeLimit) {
+            if (callbacks?.onLimitRelease) {
+              runOnJS(callbacks.onLimitRelease)(tracking.activeLimit);
+            }
+            tracking.activeLimit = null;
+          }
+
+          if (callbacks?.onMaxDistanceChange) {
+            runOnJS(callbacks.onMaxDistanceChange)(
+              state.maxDistance,
+              isRubberBanding,
+            );
+          }
+          if (callbacks?.onCameraZoomChange) {
+            runOnJS(callbacks.onCameraZoomChange)(
+              state.cameraZoom,
+              isRubberBanding,
+            );
+          }
+          if (callbacks?.onGestureUpdate) {
+            runOnJS(callbacks.onGestureUpdate)(tracking.gestureMode, {
+              min: state.minDistance,
+              max: state.maxDistance,
+              zoom: state.cameraZoom,
+              isRubberBanding: tracking.isRubberBanding,
+            });
+          }
+        }
+      })
+      .onEnd(() => {
+        if (tracking.gestureMode === "horizontal") {
+          let finalFOV = state.fov;
+          if (tracking.isRubberBanding) {
+            finalFOV = Math.max(
+              constants.FOV_MIN,
+              Math.min(constants.FOV_MAX, state.fov),
+            );
+            state.fov = finalFOV;
+            if (callbacks?.onFOVChange) {
+              runOnJS(callbacks.onFOVChange)(finalFOV, false);
+            }
+          }
+
+          if (__DEV__)
+            console.log(`✅ Horizontal ended - FOV: ${finalFOV.toFixed(1)}°`);
+
+          if (tracking.gestureMode && callbacks?.onGestureEnd) {
+            runOnJS(callbacks.onGestureEnd)(tracking.gestureMode, {
+              fov: finalFOV,
+            });
+          }
+        } else if (tracking.gestureMode === "adjustMax") {
+          let finalMin = state.minDistance;
+          let finalMax = state.maxDistance;
+          let finalZoom = state.cameraZoom;
+
+          if (tracking.isRubberBanding) {
+            finalMin = Math.max(
+              constants.DISTANCE_MIN,
+              Math.min(state.maxDistance - 100, state.minDistance),
+            );
+            finalMax = Math.min(
+              constants.DISTANCE_MAX,
+              Math.max(state.minDistance + 100, state.maxDistance),
+            );
+            finalZoom = Math.max(0, Math.min(1, state.cameraZoom));
+
+            state.minDistance = finalMin;
+            state.maxDistance = finalMax;
+            state.cameraZoom = finalZoom;
+
+            if (callbacks?.onMinDistanceChange) {
+              runOnJS(callbacks.onMinDistanceChange)(finalMin, false);
+            }
+            if (callbacks?.onMaxDistanceChange) {
+              runOnJS(callbacks.onMaxDistanceChange)(finalMax, false);
+            }
+            if (callbacks?.onCameraZoomChange) {
+              runOnJS(callbacks.onCameraZoomChange)(finalZoom, false);
+            }
+          }
+
+          if (__DEV__) {
+            console.log(
+              `✅ Vertical ended - Min: ${(finalMin / 1000).toFixed(1)}km, Max: ${(finalMax / 1000).toFixed(1)}km`,
+            );
+          }
+
+          if (tracking.gestureMode && callbacks?.onGestureEnd) {
+            runOnJS(callbacks.onGestureEnd)(tracking.gestureMode, {
+              min: finalMin,
+              max: finalMax,
+              zoom: finalZoom,
+            });
+          }
+        }
+
+        // Reset tracking state - MUTATE, don't reassign
+        tracking.gestureMode = null;
+        tracking.movingFinger = null;
+        tracking.isRubberBanding = false;
+        tracking.activeLimit = null;
+        tracking.baseMinDist = state.minDistance;
+        tracking.baseMaxDist = state.maxDistance;
+        tracking.baseCameraZoom = state.cameraZoom;
+        tracking.baseFOV = state.fov;
+
+        // Sync back to class state using runOnJS
+        runOnJS(syncState)(state);
+      });
+  } // createGesture() {
+  //   const callbacks = this.callbacks;
+
+  //   // Store constants as plain object for worklet access
+  //   const constants = {
+  //     FOV_MIN: AR_CONSTANTS.FOV.MIN,
+  //     FOV_MAX: AR_CONSTANTS.FOV.MAX,
+  //     DISTANCE_MIN: AR_CONSTANTS.DISTANCE.MIN,
+  //     DISTANCE_MAX: AR_CONSTANTS.DISTANCE.MAX,
+  //     VERTICAL_PIXEL_TO_METER: this.VERTICAL_PIXEL_TO_METER,
+  //     VERTICAL_PIXEL_TO_ZOOM: this.VERTICAL_PIXEL_TO_ZOOM,
+  //     HORIZONTAL_PIXEL_TO_FOV: this.HORIZONTAL_PIXEL_TO_FOV,
+  //     RUBBER_BAND_FACTOR: this.RUBBER_BAND_FACTOR,
+  //   };
+
+  //   // Create local copies - these are plain objects that CAN be sent to UI thread
+  //   let state = { ...this.state };
+  //   let tracking: GestureTracking = {
+  //     gestureMode: null,
+  //     movingFinger: null,
+  //     baseMinDist: state.minDistance,
+  //     baseMaxDist: state.maxDistance,
+  //     baseCameraZoom: state.cameraZoom,
+  //     baseFOV: state.fov,
+  //     isRubberBanding: false,
+  //     activeLimit: null,
+  //   };
+
+  //   // Helper to check limits - works with plain objects
+  //   const checkLimits = (
+  //     value: number,
+  //     min: number,
+  //     max: number,
+  //     limit: LimitType,
+  //   ) => {
+  //     let newValue = value;
+  //     let isRubberBanding = false;
+  //     let hitLimit: LimitType | null = null;
+
+  //     if (value < min) {
+  //       isRubberBanding = true;
+  //       hitLimit = limit;
+  //       const excess = min - value;
+  //       const resistance = 1 - Math.min(0.8, Math.log10(1 + excess / 100) * 0.15);
+  //       newValue = min - excess * constants.RUBBER_BAND_FACTOR * resistance;
+  //     } else if (value > max) {
+  //       isRubberBanding = true;
+  //       hitLimit = limit;
+  //       const excess = value - max;
+  //       const resistance = 1 - Math.min(0.8, Math.log10(1 + excess / 100) * 0.15);
+  //       newValue = max + excess * constants.RUBBER_BAND_FACTOR * resistance;
+  //     }
+
+  //     return { newValue, isRubberBanding, hitLimit };
+  //   };
+
+  //   const getExcess = (limit: LimitType) => {
+  //     switch (limit) {
+  //       case "min":
+  //         return Math.max(0, constants.DISTANCE_MIN - state.minDistance);
+  //       case "max":
+  //         return Math.max(0, state.maxDistance - constants.DISTANCE_MAX);
+  //       case "zoom":
+  //         return Math.max(0, Math.abs(state.cameraZoom - (state.cameraZoom > 1 ? 1 : 0)));
+  //       case "fov":
+  //         if (state.fov < constants.FOV_MIN) return constants.FOV_MIN - state.fov;
+  //         if (state.fov > constants.FOV_MAX) return state.fov - constants.FOV_MAX;
+  //         return 0;
+  //       default:
+  //         return 0;
+  //     }
+  //   };
+
+  //   return Gesture.Pan()
+  //     .minPointers(2)
+  //     .maxPointers(2)
+  //     .activateAfterLongPress(0)
+  //     .onStart(() => {
+  //       // Reset tracking state
+  //       tracking.gestureMode = null;
+  //       tracking.isRubberBanding = false;
+  //       tracking.activeLimit = null;
+  //       tracking.baseMinDist = state.minDistance;
+  //       tracking.baseMaxDist = state.maxDistance;
+  //       tracking.baseCameraZoom = state.cameraZoom;
+  //       tracking.baseFOV = state.fov;
+
+  //       if (__DEV__) console.log(`🎯 Gesture started`);
+  //     })
+  //     .onUpdate((event) => {
+  //       const translationX = event.translationX || 0;
+  //       const translationY = event.translationY || 0;
+
+  //       // Detect gesture mode on first movement
+  //       if (tracking.gestureMode === null) {
+  //         const absX = Math.abs(translationX);
+  //         const absY = Math.abs(translationY);
+
+  //         if (absX > absY * 1.5 && absX > 20) {
+  //           // Horizontal - FOV control
+  //           tracking.gestureMode = "horizontal";
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onGestureStart)("horizontal");
+  //           }
+  //           if (__DEV__) console.log(`🎯 Horizontal pinch - FOV control`);
+  //         } else if (absY > absX * 1.5 && absY > 20) {
+  //           // Vertical - Distance control
+  //           tracking.gestureMode = "adjustMax";
+  //           tracking.movingFinger = "top";
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onGestureStart)("adjustMax");
+  //           }
+  //           if (__DEV__) console.log(`🎯 Vertical pinch - distance control`);
+  //         }
+  //       }
+
+  //       // Handle the actual gesture updates
+  //       if (tracking.gestureMode === "horizontal") {
+  //         // FOV control using translationX
+  //         const fovDelta = translationX * constants.HORIZONTAL_PIXEL_TO_FOV;
+  //         let rawFOV = tracking.baseFOV + fovDelta;
+
+  //         const { newValue, isRubberBanding, hitLimit } = checkLimits(
+  //           rawFOV,
+  //           constants.FOV_MIN,
+  //           constants.FOV_MAX,
+  //           "fov",
+  //         );
+
+  //         state.fov = newValue;
+  //         tracking.isRubberBanding = isRubberBanding;
+
+  //         if (hitLimit && !tracking.activeLimit) {
+  //           tracking.activeLimit = hitLimit;
+  //           const excess = Math.abs(
+  //             state.fov -
+  //               (state.fov < constants.FOV_MIN
+  //                 ? constants.FOV_MIN
+  //                 : constants.FOV_MAX),
+  //           );
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onLimitHit)(hitLimit, excess);
+  //           }
+  //         } else if (!hitLimit && tracking.activeLimit) {
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onLimitRelease)(tracking.activeLimit);
+  //           }
+  //           tracking.activeLimit = null;
+  //         }
+
+  //         if (callbacks) {
+  //           runOnJS(callbacks.onFOVChange)(
+  //             state.fov,
+  //             tracking.isRubberBanding,
+  //           );
+  //           runOnJS(callbacks.onGestureUpdate)(tracking.gestureMode, {
+  //             fov: state.fov,
+  //             isRubberBanding: tracking.isRubberBanding,
+  //           });
+  //         }
+  //       } else if (tracking.gestureMode === "adjustMax") {
+  //         // Vertical distance control
+  //         const maxDelta = -translationY;
+  //         let rawMax =
+  //           tracking.baseMaxDist + maxDelta * constants.VERTICAL_PIXEL_TO_METER;
+
+  //         const maxResult = checkLimits(
+  //           rawMax,
+  //           state.minDistance + 1000,
+  //           constants.DISTANCE_MAX,
+  //           "max",
+  //         );
+  //         state.maxDistance = maxResult.newValue;
+  //         let isRubberBanding = maxResult.isRubberBanding;
+  //         let hitLimit = maxResult.hitLimit;
+
+  //         // Slight zoom adjustment
+  //         let rawZoom =
+  //           tracking.baseCameraZoom +
+  //           maxDelta * constants.VERTICAL_PIXEL_TO_ZOOM * 0.5;
+  //         const zoomResult = checkLimits(rawZoom, 0, 1, "zoom");
+  //         state.cameraZoom = zoomResult.newValue;
+  //         if (zoomResult.isRubberBanding) isRubberBanding = true;
+
+  //         tracking.isRubberBanding = isRubberBanding;
+
+  //         if (hitLimit && !tracking.activeLimit) {
+  //           tracking.activeLimit = hitLimit;
+  //           const excess = getExcess(hitLimit);
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onLimitHit)(hitLimit, excess);
+  //           }
+  //         } else if (!hitLimit && tracking.activeLimit) {
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onLimitRelease)(tracking.activeLimit);
+  //           }
+  //           tracking.activeLimit = null;
+  //         }
+
+  //         if (callbacks) {
+  //           runOnJS(callbacks.onMaxDistanceChange)(
+  //             state.maxDistance,
+  //             isRubberBanding,
+  //           );
+  //           runOnJS(callbacks.onCameraZoomChange)(
+  //             state.cameraZoom,
+  //             isRubberBanding,
+  //           );
+  //           runOnJS(callbacks.onGestureUpdate)(tracking.gestureMode, {
+  //             min: state.minDistance,
+  //             max: state.maxDistance,
+  //             zoom: state.cameraZoom,
+  //             isRubberBanding: tracking.isRubberBanding,
+  //           });
+  //         }
+  //       }
+  //     })
+  //     .onEnd(() => {
+  //       if (tracking.gestureMode === "horizontal") {
+  //         let finalFOV = state.fov;
+  //         if (tracking.isRubberBanding) {
+  //           finalFOV = Math.max(
+  //             constants.FOV_MIN,
+  //             Math.min(constants.FOV_MAX, state.fov),
+  //           );
+  //           state.fov = finalFOV;
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onFOVChange)(finalFOV, false);
+  //           }
+  //         }
+
+  //         if (__DEV__)
+  //           console.log(`✅ Horizontal ended - FOV: ${finalFOV.toFixed(1)}°`);
+
+  //         if (tracking.gestureMode && callbacks) {
+  //           runOnJS(callbacks.onGestureEnd)(tracking.gestureMode, {
+  //             fov: finalFOV,
+  //           });
+  //         }
+  //       } else if (tracking.gestureMode === "adjustMax") {
+  //         let finalMin = state.minDistance;
+  //         let finalMax = state.maxDistance;
+  //         let finalZoom = state.cameraZoom;
+
+  //         if (tracking.isRubberBanding) {
+  //           finalMin = Math.max(
+  //             constants.DISTANCE_MIN,
+  //             Math.min(state.maxDistance - 100, state.minDistance),
+  //           );
+  //           finalMax = Math.min(
+  //             constants.DISTANCE_MAX,
+  //             Math.max(state.minDistance + 100, state.maxDistance),
+  //           );
+  //           finalZoom = Math.max(0, Math.min(1, state.cameraZoom));
+
+  //           state.minDistance = finalMin;
+  //           state.maxDistance = finalMax;
+  //           state.cameraZoom = finalZoom;
+
+  //           if (callbacks) {
+  //             runOnJS(callbacks.onMinDistanceChange)(finalMin, false);
+  //             runOnJS(callbacks.onMaxDistanceChange)(finalMax, false);
+  //             runOnJS(callbacks.onCameraZoomChange)(finalZoom, false);
+  //           }
+  //         }
+
+  //         if (__DEV__) {
+  //           console.log(
+  //             `✅ Vertical ended - Min: ${(finalMin / 1000).toFixed(1)}km, Max: ${(finalMax / 1000).toFixed(1)}km`,
+  //           );
+  //         }
+
+  //         if (tracking.gestureMode && callbacks) {
+  //           runOnJS(callbacks.onGestureEnd)(tracking.gestureMode, {
+  //             min: finalMin,
+  //             max: finalMax,
+  //             zoom: finalZoom,
+  //           });
+  //         }
+  //       }
+
+  //       // Reset tracking state
+  //       tracking = {
+  //         gestureMode: null,
+  //         movingFinger: null,
+  //         baseMinDist: state.minDistance,
+  //         baseMaxDist: state.maxDistance,
+  //         baseCameraZoom: state.cameraZoom,
+  //         baseFOV: state.fov,
+  //         isRubberBanding: false,
+  //         activeLimit: null,
+  //       };
+
+  //       // Sync back to class state
+  //       this.state = { ...state };
+  //     });
+  // }
 }

@@ -225,11 +225,11 @@ export class ARGestureController {
   ////////////////////////////////
 
   ////////////////////////////////
+  // cumquat/gestures/ArGestureControler.ts - Corrected createGesture()
 
   createGesture() {
     const callbacks = this.callbacks;
 
-    // Store constants as plain object for worklet access
     const constants = {
       FOV_MIN: AR_CONSTANTS.FOV.MIN,
       FOV_MAX: AR_CONSTANTS.FOV.MAX,
@@ -241,7 +241,6 @@ export class ARGestureController {
       RUBBER_BAND_FACTOR: this.RUBBER_BAND_FACTOR,
     };
 
-    // Create a COMPLETELY DETACHED object - NOT from this.state
     const initialState = this.getState();
     let state: GestureState = {
       minDistance: initialState.minDistance,
@@ -250,7 +249,6 @@ export class ARGestureController {
       fov: initialState.fov,
     };
 
-    // Create tracking as a plain object
     let tracking: GestureTracking = {
       gestureMode: null,
       movingFinger: null,
@@ -262,7 +260,6 @@ export class ARGestureController {
       activeLimit: null,
     };
 
-    // Helper to check limits
     const checkLimits = (
       value: number,
       min: number,
@@ -316,17 +313,20 @@ export class ARGestureController {
       }
     };
 
-    // Function to sync state back to class - called via runOnJS
     const syncState = (s: GestureState) => {
       this.state = { ...s };
     };
 
+    // ✅ CORRECT for gesture-handler 2.x:
+    // - .onBegin() for initialization (runs on JS thread)
+    // - .onUpdate() for updates (worklet)
+    // - .onEnd() for cleanup (worklet)
     return Gesture.Pan()
       .minPointers(2)
       .maxPointers(2)
       .activateAfterLongPress(0)
-      .onStart(() => {
-        // Reset tracking state - MUTATE, don't reassign
+      .onBegin(() => {
+        // Reset tracking state - runs on JS thread
         tracking.gestureMode = null;
         tracking.movingFinger = null;
         tracking.isRubberBanding = false;
@@ -339,6 +339,7 @@ export class ARGestureController {
         if (__DEV__) console.log(`🎯 Gesture started`);
       })
       .onUpdate((event) => {
+        // ✅ onUpdate has translationX/Y (worklet)
         const translationX = event.translationX || 0;
         const translationY = event.translationY || 0;
 
@@ -349,7 +350,6 @@ export class ARGestureController {
 
           if (absX > absY * 1.5 && absX > 20) {
             tracking.gestureMode = "horizontal";
-            // Call runOnJS directly - NO wrapper functions
             if (callbacks?.onGestureStart) {
               runOnJS(callbacks.onGestureStart)("horizontal");
             }
@@ -546,7 +546,8 @@ export class ARGestureController {
         // Sync back to class state using runOnJS
         runOnJS(syncState)(state);
       });
-  } // createGesture() {
+  }
+  // createGesture() {
   //   const callbacks = this.callbacks;
 
   //   // Store constants as plain object for worklet access

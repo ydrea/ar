@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import ARView from "@/app/(tabs)/gestbeta";
+import ARView from "@/app/(tabs)/log";
 
 const originalError = console.error;
 

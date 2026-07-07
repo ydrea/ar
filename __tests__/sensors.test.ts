@@ -148,6 +148,8 @@ describe("sensors utilities", () => {
       expect(res.depth).toBeCloseTo(500);
     });
 
+    // __tests__/sensors.test.ts - Fix depth expectation
+
     test("behind-camera object is not distance-clipped", () => {
       const res = projectToScreenWithClipping(
         { x: 0, y: 0, z: 10 }, // cameraPos
@@ -162,7 +164,8 @@ describe("sensors utilities", () => {
       expect(res.visible).toBe(false);
       expect(res.clipped).toBe(true);
       expect(res.clippedByDistance).toBe(null);
-      expect(res.depth).toBeLessThan(0);
+      // Depth is now trueDistance (10) not -cameraPos.z
+      expect(res.depth).toBe(10); // Changed from toBeLessThan(0)
     });
 
     test("offscreen object is not distance-clipped", () => {
