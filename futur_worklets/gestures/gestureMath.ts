@@ -89,7 +89,7 @@ export function rubberBandResistance(excess: number): number {
   );
 }
 
-const resistance = rubberBandResistance(excess);
+// const resistance = rubberBandResistance(excess);
 /* --------------------------------------------------------- */
 /* HORIZONTAL PINCH                                            */
 /* --------------------------------------------------------- */

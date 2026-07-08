@@ -4,7 +4,7 @@ BCK/
 admin/
 samples/
 credentials/
-
+futur_worklets/gestures/*.*
 credentials.json
 # dependencies
 node_modules/
