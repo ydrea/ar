@@ -1,7 +1,7 @@
 // cumquat/gestures/gestureMath.ts
 
 import { AR_CONSTANTS } from "./constants";
-import type { GestureState, LimitType } from "./types";
+import type { GestureState, GestureConfig, LimitType } from "./types";
 
 export interface RubberBandResult {
   value: number;
@@ -15,11 +15,45 @@ export interface GestureUpdateResult {
   hitLimit: LimitType | null;
 }
 
-const RUBBER_BAND_FACTOR = 0.3;
+export const gestureConfig: GestureConfig = {
+  distance: {
+    min: AR_CONSTANTS.DISTANCE.MIN,
+    max: AR_CONSTANTS.DISTANCE.MAX,
+    minGap: AR_CONSTANTS.GESTURE.MIN_DISTANCE_GAP,
+  },
 
-const VERTICAL_PIXEL_TO_METER = 400;
-const VERTICAL_PIXEL_TO_ZOOM = 0.003;
-const HORIZONTAL_PIXEL_TO_FOV = 0.2;
+  fov: {
+    min: AR_CONSTANTS.FOV.MIN,
+    max: AR_CONSTANTS.FOV.MAX,
+  },
+
+  gesture: {
+    rubberBandFactor: AR_CONSTANTS.GESTURE.RUBBER_BAND_FACTOR,
+    rubberBandMaxResistance:
+      AR_CONSTANTS.GESTURE.RUBBER_BAND_MAX_RESISTANCE,
+    rubberBandLogFactor:
+      AR_CONSTANTS.GESTURE.RUBBER_BAND_LOG_FACTOR,
+
+    verticalPixelToMeter:
+      AR_CONSTANTS.GESTURE.VERTICAL_PIXEL_TO_METER,
+
+    verticalPixelToZoom:
+      AR_CONSTANTS.GESTURE.VERTICAL_PIXEL_TO_ZOOM,
+
+    horizontalPixelToFov:
+      AR_CONSTANTS.GESTURE.HORIZONTAL_PIXEL_TO_FOV,
+
+    distanceSensitivity:
+      AR_CONSTANTS.GESTURE.DISTANCE_SENSITIVITY,
+
+    zoomSensitivity:
+      AR_CONSTANTS.GESTURE.ZOOM_SENSITIVITY,
+
+    fovSensitivity:
+      AR_CONSTANTS.GESTURE.FOV_SENSITIVITY,
+  },
+};
+
 
 /* --------------------------------------------------------- */
 /* BASIC UTILITIES                                            */

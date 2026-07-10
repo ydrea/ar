@@ -33,11 +33,9 @@ export const AR_CONSTANTS = {
 
     FOV_SENSITIVITY: 1,
   },
-
   // WGS84 constants
   WGS84_A: 6378137,
   WGS84_F: 1 / 298.257223563,
-  //  WGS84_E2: WGS84_F * (2 - WGS84_F)
 
   // FOV settings
   FOV: {
@@ -52,7 +50,7 @@ export const AR_CONSTANTS = {
     MIN: 0,
     MAX: 135000, // 135km
     DEFAULT_MIN: 0,
-    DEFAULT_MAX: 13500, // 1.35km default
+    DEFAULT_MAX: 13500, // 13.5km default
     STEP: 10000, // 10km steps
   },
 
