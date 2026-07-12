@@ -1,6 +1,6 @@
 #pragma once
 
-#include <CumquatAppSpecsJSI.h>
+#include <NativeCumquatSpecJSI.h>
 
 #include "../core/Engine.h"
 
