@@ -14,10 +14,43 @@ const originalLog = console.log;
 
 const mockSetGestureState = jest.fn((nextState) => nextState);
 const mockUseARGestureController = jest.fn(() => ({
-  gesture: { kind: "mock-two-finger-pan" },
+  gesture: {kind: "mock-two-finger-pan"},
   setState: mockSetGestureState,
 }));
-const mockAnimatedZoom = { value: 0 };
+const mockAnimatedZoom = {value: 0};
+
+const mockProjectedPOIs = Array.from({length: 36}, (_, poiIndex) => ({
+  poiIndex,
+  x: 100,
+  y: 100,
+  depth: 10,
+  distance: 10,
+  bearing: 0,
+  visible: true,
+  clipped: false,
+  clippedByDistance: null,
+}));
+
+const mockNativeEngine = {
+  initialize: jest.fn(),
+  update: jest.fn(() => 1),
+  getFrame: jest.fn(() => ({
+    sequence: 1,
+    timestampNs: 1,
+    projectedPOIs: mockProjectedPOIs,
+    visiblePOIs: mockProjectedPOIs,
+  })),
+  dispose: jest.fn(),
+};
+
+const mockNativeEngineFactory = {
+  create: jest.fn(() => mockNativeEngine),
+  getNativeVersion: jest.fn(() => "test-cpp"),
+};
+
+jest.mock("@/modules/cumquat-native/src", () => ({
+  CumquatEngine: mockNativeEngineFactory,
+}));
 
 jest.mock("@/cumquat/gestures/useARGestureController", () => ({
   useARGestureController: (options) => mockUseARGestureController(options),
@@ -25,7 +58,7 @@ jest.mock("@/cumquat/gestures/useARGestureController", () => ({
 
 jest.mock("@/hooks/useCameraZoom", () => {
   const React = require("react");
-  const { View } = require("react-native");
+  const {View} = require("react-native");
 
   const MockAnimatedCamera = React.forwardRef((props, ref) => {
     const {
@@ -39,14 +72,14 @@ jest.mock("@/hooks/useCameraZoom", () => {
 
   return {
     useCameraZoom: jest.fn(() => ({
-      cameraRef: { current: null },
+      cameraRef: {current: null},
       animatedZoom: mockAnimatedZoom,
-      animatedProps: { zoom: 0 },
+      animatedProps: {zoom: 0},
       AnimatedCamera: MockAnimatedCamera,
       animateZoom: jest.fn(),
       setZoom: jest.fn(),
       resetZoom: jest.fn(),
-      isAnimating: { value: false },
+      isAnimating: {value: false},
     })),
   };
 });
@@ -59,14 +92,14 @@ jest.mock("@/cumquat/sensors", () => {
       lat: 45.8,
       lon: 15.96,
       elevation: 120,
-      orientation: { x: 0, y: 0, z: 0, w: 1 },
+      orientation: {x: 0, y: 0, z: 0, w: 1},
       timestamp: Date.now(),
     })),
   };
 
   return {
     sensorHub: mockSensorHub,
-    geoToENU: jest.fn(() => ({ x: 0, y: 0, z: -10 })),
+    geoToENU: jest.fn(() => ({x: 0, y: 0, z: -10})),
     rotateVector: jest.fn((vector) => vector),
     calculateBearing: jest.fn(() => 0),
     projectToScreenWithClipping: jest.fn(() => ({
@@ -96,11 +129,11 @@ jest.mock("expo-camera", () => ({
 
 jest.mock("react-native-gesture-handler", () => {
   const React = require("react");
-  const { View } = require("react-native");
+  const {View} = require("react-native");
 
   return {
-    GestureDetector: ({ children }) => <View>{children}</View>,
-    GestureHandlerRootView: ({ children, ...props }) => (
+    GestureDetector: ({children}) => <View>{children}</View>,
+    GestureHandlerRootView: ({children, ...props}) => (
       <View {...props}>{children}</View>
     ),
   };
@@ -108,13 +141,13 @@ jest.mock("react-native-gesture-handler", () => {
 
 jest.mock("react-native-svg", () => {
   const React = require("react");
-  const { View, Text } = require("react-native");
+  const {View, Text} = require("react-native");
 
   return {
-    Svg: ({ children }) => <View>{children}</View>,
+    Svg: ({children}) => <View>{children}</View>,
     Circle: () => null,
     Line: () => null,
-    Text: ({ children }) => <Text>{children}</Text>,
+    Text: ({children}) => <Text>{children}</Text>,
   };
 });
 
@@ -123,9 +156,17 @@ describe("beta ARView", () => {
     jest.clearAllMocks();
     mockSetGestureState.mockImplementation((nextState) => nextState);
     mockUseARGestureController.mockImplementation(() => ({
-      gesture: { kind: "mock-two-finger-pan" },
+      gesture: {kind: "mock-two-finger-pan"},
       setState: mockSetGestureState,
     }));
+    mockNativeEngine.update.mockReturnValue(1);
+    mockNativeEngine.getFrame.mockReturnValue({
+      sequence: 1,
+      timestampNs: 1,
+      projectedPOIs: mockProjectedPOIs,
+      visiblePOIs: mockProjectedPOIs,
+    });
+    mockNativeEngineFactory.create.mockReturnValue(mockNativeEngine);
 
     console.log = jest.fn();
     console.error = (...args) => {
@@ -142,13 +183,23 @@ describe("beta ARView", () => {
   });
 
   test("renders the animated camera and starts SensorHub", async () => {
-    // const { getByTestId } = render(<ARView />);
     await render(<ARView />);
     expect(screen.getByTestId("animated-camera")).toBeTruthy();
     await waitFor(() => {
       expect(
         require("@/cumquat/sensors").sensorHub.start,
       ).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("renders frames from the native engine", async () => {
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(mockNativeEngineFactory.create).toHaveBeenCalled();
+      expect(mockNativeEngine.initialize).toHaveBeenCalledTimes(1);
+      expect(mockNativeEngine.update).toHaveBeenCalled();
+      expect(mockNativeEngine.getFrame).toHaveBeenCalled();
     });
   });
 
@@ -222,8 +273,6 @@ describe("beta ARView", () => {
       zoom: 0,
       fov: 120,
     });
-    expect(
-      require("@/cumquat/sensors").sensorHub.getSnapshot,
-    ).toHaveBeenCalled();
+    expect(mockNativeEngine.dispose).toHaveBeenCalled();
   });
 });
