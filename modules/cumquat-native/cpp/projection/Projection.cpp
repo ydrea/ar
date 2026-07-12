@@ -5,10 +5,39 @@
 namespace cumquat::projection {
 namespace {
 constexpr double kPi = 3.14159265358979323846;
+constexpr double kDebugViewportMarginPixels = 200.0;
+
 double radians(double degrees) { return degrees * kPi / 180.0; }
+
+Vec3 rotateByQuaternion(const Vec3& vector, const Quaternion& source) {
+  const double norm = std::sqrt(
+      source.x * source.x + source.y * source.y +
+      source.z * source.z + source.w * source.w);
+
+  const double inverseNorm = norm > 0.0 ? 1.0 / norm : 1.0;
+  const double qx = source.x * inverseNorm;
+  const double qy = source.y * inverseNorm;
+  const double qz = source.z * inverseNorm;
+  const double qw = source.w * inverseNorm;
+
+  // Same optimized q * v * q^-1 formula used in cumquat/sensors.ts.
+  const double tx = 2.0 * (qy * vector.z - qz * vector.y);
+  const double ty = 2.0 * (qz * vector.x - qx * vector.z);
+  const double tz = 2.0 * (qx * vector.y - qy * vector.x);
+
+  return {
+      vector.x + qw * tx + (qy * tz - qz * ty),
+      vector.y + qw * ty + (qz * tx - qx * tz),
+      vector.z + qw * tz + (qx * ty - qy * tx),
+  };
+}
 }
 
 Vec3 worldToCamera(const Vec3& enu, const SensorState& sensorState) {
+  if (sensorState.hasOrientationQuaternion) {
+    return rotateByQuaternion(enu, sensorState.orientation);
+  }
+
   const double heading = radians(sensorState.headingDeg);
   const double pitch = radians(-sensorState.pitchDeg);
   const double roll = radians(-sensorState.rollDeg);
@@ -46,14 +75,40 @@ bool projectToScreen(
     double& x,
     double& y,
     double& depth) {
-  depth = camera.y;
-  if (depth <= config.nearMeters || depth >= config.farMeters) return false;
-
   const double width = sensorState.viewportWidth;
   const double height = sensorState.viewportHeight;
   if (width <= 0.0 || height <= 0.0) return false;
 
-  const double focal = width / (2.0 * std::tan(radians(config.horizontalFovDeg) * 0.5));
+  if (sensorState.hasOrientationQuaternion) {
+    // JS compatibility mode: radial depth, -Z forward test, axis swap, separate
+    // vertical FOV calculation, and the existing 200px offscreen margin.
+    depth = camera.length();
+    if (depth <= config.nearMeters || depth >= config.farMeters) return false;
+    if (camera.z > 0.0) return false;
+
+    const double horizontalFocal =
+        width / (2.0 * std::tan(radians(config.horizontalFovDeg) * 0.5));
+    const double aspect = width / height;
+    const double verticalFovDeg = config.horizontalFovDeg / aspect;
+    const double verticalFocal =
+        height / (2.0 * std::tan(radians(verticalFovDeg) * 0.5));
+
+    const double correctedX = -camera.y;
+    const double correctedY = -camera.x;
+    x = width * 0.5 + correctedX * horizontalFocal / depth;
+    y = height * 0.5 - correctedY * verticalFocal / depth;
+
+    return x >= -kDebugViewportMarginPixels &&
+        x <= width + kDebugViewportMarginPixels &&
+        y >= -kDebugViewportMarginPixels &&
+        y <= height + kDebugViewportMarginPixels;
+  }
+
+  depth = camera.y;
+  if (depth <= config.nearMeters || depth >= config.farMeters) return false;
+
+  const double focal =
+      width / (2.0 * std::tan(radians(config.horizontalFovDeg) * 0.5));
   x = width * 0.5 + camera.x * focal / depth;
   y = height * 0.5 - camera.z * focal / depth;
   return x >= 0.0 && x <= width && y >= 0.0 && y <= height;
