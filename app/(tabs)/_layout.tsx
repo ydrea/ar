@@ -62,9 +62,9 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="log"
+        name="help"
         options={{
-          title: "LOG",
+          title: "HELP",
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons

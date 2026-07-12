@@ -83,6 +83,8 @@ export default () => {
     },
     plugins: [
       "expo-router",
+      "expo-audio",
+      "expo-image",
       "expo-asset",
       "expo-screen-orientation",
       "expo-web-browser",

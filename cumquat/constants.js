@@ -30,7 +30,7 @@ export const AR_CONSTANTS = {
   FOV: {
     MIN: 30,
     MAX: 120,
-    DEFAULT: 120,
+    DEFAULT: 100,
     STEP: 10,
   },
 
