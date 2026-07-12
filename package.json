@@ -60,7 +60,7 @@
     "test:watch": "jest --watch"
   },
   "codegenConfig": {
-    "name": "CumquatAppSpecs",
+    "name": "NativeCumquatSpec",
     "type": "modules",
     "jsSrcsDir": "modules/cumquat-native/specs",
     "android": {
