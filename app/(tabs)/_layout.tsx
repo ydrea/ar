@@ -47,7 +47,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="gestbeta"
+        name="gest"
         options={{
           title: "AR Beta",
           headerShown: false,

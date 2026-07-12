@@ -1,32 +1,62 @@
 import "react-native-gesture-handler/jestSetup";
 
-jest.mock("react-native-reanimated", () => ({
-  __esModule: true,
-  default: {
-    call: () => {},
-  },
-  runOnJS: (fn: any) => fn,
-}));
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
 
-jest.mock("react-native-gesture-handler", () => {
-  const actual = jest.requireActual("react-native-gesture-handler");
+  const createAnimatedComponent = (Component: any) =>
+    React.forwardRef((props: any, ref: any) =>
+      React.createElement(Component, { ...props, ref }),
+    );
+
+  const useSharedValue = <T>(initialValue: T) => ({ value: initialValue });
+  const useAnimatedProps = (updater: () => Record<string, unknown>) =>
+    updater();
+  const useDerivedValue = <T>(updater: () => T) => ({ value: updater() });
+  const runOnJS = (fn: (...args: any[]) => any) => fn;
+  const runOnUI = (fn: (...args: any[]) => any) => fn;
+  const cancelAnimation = jest.fn();
+
+  const finishAnimation = (
+    value: number,
+    callback?: (finished: boolean) => void,
+  ) => {
+    callback?.(true);
+    return value;
+  };
+
+  const withSpring = (
+    value: number,
+    _config?: unknown,
+    callback?: (finished: boolean) => void,
+  ) => finishAnimation(value, callback);
+
+  const withTiming = (
+    value: number,
+    _config?: unknown,
+    callback?: (finished: boolean) => void,
+  ) => finishAnimation(value, callback);
+
+  const Easing = {
+    cubic: (value: number) => value,
+    inOut: (easing: (value: number) => number) => easing,
+  };
+
   return {
-    ...actual,
-    Gesture: {
-      Pan: () => ({
-        minPointers: () => ({
-          maxPointers: () => ({
-            activateAfterLongPress: () => ({
-              onTouchesDown: () => ({
-                onTouchesMove: () => ({
-                  onTouchesUp: () => ({}),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
+    __esModule: true,
+    default: {
+      createAnimatedComponent,
+      call: () => {},
     },
+    createAnimatedComponent,
+    useSharedValue,
+    useAnimatedProps,
+    useDerivedValue,
+    runOnJS,
+    runOnUI,
+    cancelAnimation,
+    withSpring,
+    withTiming,
+    Easing,
   };
 });
 
@@ -37,14 +67,16 @@ jest.mock("expo-camera", () => ({
 
 jest.mock("expo-sensors", () => ({
   DeviceMotion: {
-    requestPermissionsAsync: jest.fn(),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: "granted" }),
     setUpdateInterval: jest.fn(),
-    addListener: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
   },
 }));
 
 jest.mock("expo-location", () => ({
-  requestForegroundPermissionsAsync: jest.fn(),
-  watchPositionAsync: jest.fn(),
+  requestForegroundPermissionsAsync: jest
+    .fn()
+    .mockResolvedValue({ status: "granted" }),
+  watchPositionAsync: jest.fn().mockResolvedValue({ remove: jest.fn() }),
   Accuracy: { BestForNavigation: 1 },
 }));

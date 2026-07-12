@@ -1,4 +1,4 @@
-// app/gest-beta.tsx - Clean Beta AR View with proper logging
+// app/gest.tsx - Clean Beta AR View with proper logging
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,

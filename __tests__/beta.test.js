@@ -1,8 +1,55 @@
+// __tests__/beta.test.js
 import React from "react";
-import { render, waitFor } from "@testing-library/react-native";
-import ARView from "@/app/(tabs)/log";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  screen,
+} from "@testing-library/react-native";
+import ARView from "@/app/(tabs)/gest";
 
 const originalError = console.error;
+const originalLog = console.log;
+
+const mockSetGestureState = jest.fn((nextState) => nextState);
+const mockUseARGestureController = jest.fn(() => ({
+  gesture: { kind: "mock-two-finger-pan" },
+  setState: mockSetGestureState,
+}));
+const mockAnimatedZoom = { value: 0 };
+
+jest.mock("@/cumquat/gestures/useARGestureController", () => ({
+  useARGestureController: (options) => mockUseARGestureController(options),
+}));
+
+jest.mock("@/hooks/useCameraZoom", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+
+  const MockAnimatedCamera = React.forwardRef((props, ref) => {
+    const {
+      animatedProps: _animatedProps,
+      onCameraReady: _onCameraReady,
+      onMountError: _onMountError,
+      ...viewProps
+    } = props;
+    return <View ref={ref} testID="animated-camera" {...viewProps} />;
+  });
+
+  return {
+    useCameraZoom: jest.fn(() => ({
+      cameraRef: { current: null },
+      animatedZoom: mockAnimatedZoom,
+      animatedProps: { zoom: 0 },
+      AnimatedCamera: MockAnimatedCamera,
+      animateZoom: jest.fn(),
+      setZoom: jest.fn(),
+      resetZoom: jest.fn(),
+      isAnimating: { value: false },
+    })),
+  };
+});
 
 jest.mock("@/cumquat/sensors", () => {
   const mockSensorHub = {
@@ -20,7 +67,7 @@ jest.mock("@/cumquat/sensors", () => {
   return {
     sensorHub: mockSensorHub,
     geoToENU: jest.fn(() => ({ x: 0, y: 0, z: -10 })),
-    rotateVector: jest.fn((v) => v),
+    rotateVector: jest.fn((vector) => vector),
     calculateBearing: jest.fn(() => 0),
     projectToScreenWithClipping: jest.fn(() => ({
       x: 100,
@@ -51,30 +98,22 @@ jest.mock("react-native-gesture-handler", () => {
   const React = require("react");
   const { View } = require("react-native");
 
-  const chain = {
-    minPointers: () => chain,
-    maxPointers: () => chain,
-    activateAfterLongPress: () => chain,
-    onTouchesDown: () => chain,
-    onTouchesMove: () => chain,
-    onTouchesUp: () => chain,
-  };
-
   return {
-    Gesture: {
-      Pan: () => chain,
-    },
     GestureDetector: ({ children }) => <View>{children}</View>,
-    GestureHandlerRootView: ({ children }) => <View>{children}</View>,
+    GestureHandlerRootView: ({ children, ...props }) => (
+      <View {...props}>{children}</View>
+    ),
   };
 });
 
 jest.mock("react-native-svg", () => {
   const React = require("react");
   const { View, Text } = require("react-native");
+
   return {
     Svg: ({ children }) => <View>{children}</View>,
-    Line: (props) => <View {...props} />,
+    Circle: () => null,
+    Line: () => null,
     Text: ({ children }) => <Text>{children}</Text>,
   };
 });
@@ -82,6 +121,13 @@ jest.mock("react-native-svg", () => {
 describe("beta ARView", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSetGestureState.mockImplementation((nextState) => nextState);
+    mockUseARGestureController.mockImplementation(() => ({
+      gesture: { kind: "mock-two-finger-pan" },
+      setState: mockSetGestureState,
+    }));
+
+    console.log = jest.fn();
     console.error = (...args) => {
       const first = String(args[0] || "");
       if (first.includes("not configured to support act")) return;
@@ -92,18 +138,39 @@ describe("beta ARView", () => {
 
   afterEach(() => {
     console.error = originalError;
+    console.log = originalLog;
   });
 
-  test("renders and starts sensor hub", async () => {
-    render(<ARView />);
-
+  test("renders the animated camera and starts SensorHub", async () => {
+    // const { getByTestId } = render(<ARView />);
+    await render(<ARView />);
+    expect(screen.getByTestId("animated-camera")).toBeTruthy();
     await waitFor(() => {
-      expect(require("@/cumquat/sensors").sensorHub.start).toHaveBeenCalled();
+      expect(
+        require("@/cumquat/sensors").sensorHub.start,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 
-  test("passes default props to RubberBandVisualFeedback", async () => {
-    render(<ARView />);
+  test("configures the new gesture hook with default state and camera zoom", async () => {
+    await render(<ARView />);
+
+    expect(mockUseARGestureController).toHaveBeenCalled();
+    const options = mockUseARGestureController.mock.calls.at(-1)[0];
+
+    expect(options.initialState).toEqual({
+      minDistance: 0,
+      maxDistance: 13_500,
+      zoom: 0,
+      fov: 120,
+    });
+    expect(options.cameraZoom).toBe(mockAnimatedZoom);
+    expect(options.callbacks.onUpdate).toEqual(expect.any(Function));
+    expect(options.callbacks.onEnd).toEqual(expect.any(Function));
+  });
+
+  test("passes inactive defaults to RubberBandVisualFeedback", async () => {
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockRubberBandVisualFeedback).toHaveBeenCalled();
@@ -114,5 +181,49 @@ describe("beta ARView", () => {
       intensity: 0,
       limitType: null,
     });
+  });
+
+  test("gesture updates drive HUD state and rubber-band feedback", async () => {
+    await render(<ARView />);
+    const options = mockUseARGestureController.mock.calls.at(-1)[0];
+
+    await act(() => {
+      options.callbacks.onUpdate({
+        state: {
+          minDistance: 500,
+          maxDistance: 25_000,
+          zoom: 0.4,
+          fov: 75,
+        },
+        rubberBanding: true,
+        activeLimit: "max",
+        excess: 500,
+      });
+    });
+
+    expect(screen.getByText("0.5km")).toBeTruthy();
+    expect(screen.getByText("25.0km")).toBeTruthy();
+    expect(screen.getByText("75°")).toBeTruthy();
+    expect(mockRubberBandVisualFeedback.mock.calls.at(-1)[0]).toEqual({
+      isActive: true,
+      intensity: 1,
+      limitType: "max",
+    });
+  });
+
+  test("reset sends the default state through the gesture controller", async () => {
+    await render(<ARView />);
+
+    fireEvent.press(screen.getByText("↺"));
+
+    expect(mockSetGestureState).toHaveBeenCalledWith({
+      minDistance: 0,
+      maxDistance: 13_500,
+      zoom: 0,
+      fov: 120,
+    });
+    expect(
+      require("@/cumquat/sensors").sensorHub.getSnapshot,
+    ).toHaveBeenCalled();
   });
 });

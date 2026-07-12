@@ -1,239 +1,262 @@
 // __tests__/gestures.test.ts
-import { AR_CONSTANTS } from "../cumquat/constants";
-import { ARGestureController } from "@/cumquat/gestures/ArGestureControler";
+import { AR_CONSTANTS } from "@/cumquat/constants";
+import {
+  applyRubberBandValue,
+  clamp,
+  createGestureInput,
+  gestureConfig,
+  getLimitExcess,
+  normalizeState,
+  rubberBandResistance,
+  snapState,
+  updateHorizontal,
+  updateVertical,
+  validateState,
+} from "@/cumquat/gestures/gestureMath";
+import type {
+  GestureConfig,
+  GestureState,
+} from "@/cumquat/gestures/types";
 
-describe("ARGestureController", () => {
-  // ============ STATE MANAGEMENT ============
+const state = (
+  overrides: Partial<GestureState> = {},
+): GestureState => ({
+  minDistance: 100,
+  maxDistance: 13_500,
+  zoom: 0.25,
+  fov: 60,
+  ...overrides,
+});
 
-  test("updateState normalizes and clamps values correctly", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(10, 100, 0.25, 60);
+describe("gestureMath", () => {
+  describe("basic state utilities", () => {
+    test("clamp supports normal and reversed bounds", () => {
+      expect(clamp(5, 0, 10)).toBe(5);
+      expect(clamp(-1, 0, 10)).toBe(0);
+      expect(clamp(11, 0, 10)).toBe(10);
+      expect(clamp(11, 10, 0)).toBe(10);
+    });
 
-    const state = ctl.getState();
-    // Min gets clamped to 0 (AR_CONSTANTS.DISTANCE.MIN)
-    // Max gets bumped to 110 (0 + 100 margin + 10 buffer)
-    // But since MAX is 135000, this stays within range
-    expect(state.minDistance).toBe(AR_CONSTANTS.DISTANCE.MIN);
-    expect(state.maxDistance).toBe(110);
-    expect(state.cameraZoom).toBe(0.25);
-    expect(state.fov).toBe(60);
+    test("normalizeState orders min and max without mutating input", () => {
+      const input = state({ minDistance: 1_000, maxDistance: 500 });
+      const result = normalizeState(input);
+
+      expect(result.minDistance).toBe(500);
+      expect(result.maxDistance).toBe(1_000);
+      expect(input.minDistance).toBe(1_000);
+      expect(result).not.toBe(input);
+    });
+
+    test("validateState preserves valid values", () => {
+      expect(validateState(state())).toEqual(state());
+    });
+
+    test("validateState normalizes ordering and enforces the distance gap", () => {
+      expect(
+        validateState(state({ minDistance: 1_000, maxDistance: 500 })),
+      ).toEqual(state({ minDistance: 500, maxDistance: 1_000 }));
+
+      const close = validateState(
+        state({ minDistance: 100, maxDistance: 150 }),
+      );
+      expect(close.maxDistance - close.minDistance).toBe(
+        AR_CONSTANTS.GESTURE.MIN_DISTANCE_GAP,
+      );
+    });
+
+    test("validateState clamps distance, zoom and FOV", () => {
+      const result = validateState(
+        state({
+          minDistance: -1_000,
+          maxDistance: 1_000_000,
+          zoom: 2.5,
+          fov: 999,
+        }),
+      );
+
+      expect(result).toEqual({
+        minDistance: AR_CONSTANTS.DISTANCE.MIN,
+        maxDistance: AR_CONSTANTS.DISTANCE.MAX,
+        zoom: 1,
+        fov: AR_CONSTANTS.FOV.MAX,
+      });
+    });
+
+    test("validateState keeps the minimum gap at the upper distance edge", () => {
+      const result = validateState(
+        state({ minDistance: 1e9, maxDistance: 2e9 }),
+      );
+
+      expect(result.maxDistance).toBe(AR_CONSTANTS.DISTANCE.MAX);
+      expect(result.minDistance).toBe(
+        AR_CONSTANTS.DISTANCE.MAX -
+          AR_CONSTANTS.GESTURE.MIN_DISTANCE_GAP,
+      );
+    });
+
+    test("validateState turns NaN and Infinity into a finite valid state", () => {
+      const result = validateState({
+        minDistance: NaN,
+        maxDistance: Infinity,
+        zoom: -Infinity,
+        fov: NaN,
+      });
+
+      expect(Number.isFinite(result.minDistance)).toBe(true);
+      expect(Number.isFinite(result.maxDistance)).toBe(true);
+      expect(Number.isFinite(result.zoom)).toBe(true);
+      expect(Number.isFinite(result.fov)).toBe(true);
+      expect(result.maxDistance - result.minDistance).toBeGreaterThanOrEqual(
+        AR_CONSTANTS.GESTURE.MIN_DISTANCE_GAP,
+      );
+      expect(result.zoom).toBeGreaterThanOrEqual(0);
+      expect(result.zoom).toBeLessThanOrEqual(1);
+      expect(result.fov).toBeGreaterThanOrEqual(AR_CONSTANTS.FOV.MIN);
+      expect(result.fov).toBeLessThanOrEqual(AR_CONSTANTS.FOV.MAX);
+    });
   });
 
-  test("updateState with valid values preserves them", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 45);
+  describe("rubber band", () => {
+    test("resistance starts at one and falls as excess grows", () => {
+      const small = rubberBandResistance(10);
+      const large = rubberBandResistance(10_000);
 
-    const state = ctl.getState();
-    expect(state.minDistance).toBe(100);
-    expect(state.maxDistance).toBe(500);
-    expect(state.cameraZoom).toBe(0.5);
-    expect(state.fov).toBe(45);
+      expect(rubberBandResistance(0)).toBe(1);
+      expect(small).toBeLessThanOrEqual(1);
+      expect(large).toBeLessThan(small);
+      expect(large).toBeGreaterThanOrEqual(
+        1 - AR_CONSTANTS.GESTURE.RUBBER_BAND_MAX_RESISTANCE,
+      );
+    });
+
+    test("a value inside its limits passes through unchanged", () => {
+      expect(applyRubberBandValue(50, 0, 100, "fov")).toEqual({
+        value: 50,
+        rubberBanding: false,
+        activeLimit: null,
+        excess: 0,
+      });
+    });
+
+    test("overshoot stays beyond the edge but is resisted", () => {
+      const below = applyRubberBandValue(-100, 0, 100, "min");
+      const above = applyRubberBandValue(200, 0, 100, "max");
+
+      expect(below.rubberBanding).toBe(true);
+      expect(below.activeLimit).toBe("min");
+      expect(below.excess).toBe(100);
+      expect(below.value).toBeLessThan(0);
+      expect(below.value).toBeGreaterThan(-100);
+
+      expect(above.rubberBanding).toBe(true);
+      expect(above.activeLimit).toBe("max");
+      expect(above.excess).toBe(100);
+      expect(above.value).toBeGreaterThan(100);
+      expect(above.value).toBeLessThan(200);
+    });
   });
 
-  test("updateState clamps FOV to valid range", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1, 1000, 0, 999);
+  describe("gesture pipelines", () => {
+    test("createGestureInput supplies safe defaults", () => {
+      expect(createGestureInput(12, -5)).toEqual({
+        translationX: 12,
+        translationY: -5,
+        velocityX: 0,
+        velocityY: 0,
+        scale: 1,
+        focalX: 0,
+        focalY: 0,
+        numberOfPointers: 2,
+      });
+    });
 
-    expect(ctl.getState().fov).toBe(AR_CONSTANTS.FOV.MAX);
+    test("horizontal movement changes only FOV", () => {
+      const base = state();
+      const result = updateHorizontal(base, createGestureInput(100, 0));
+
+      expect(result.state).toEqual({ ...base, fov: 80 });
+      expect(result.rubberBanding).toBe(false);
+      expect(result.activeLimit).toBe(null);
+    });
+
+    test("horizontal FOV overshoot rubber-bands and snaps back", () => {
+      const result = updateHorizontal(
+        state({ fov: AR_CONSTANTS.FOV.MAX }),
+        createGestureInput(100, 0),
+      );
+
+      expect(result.rubberBanding).toBe(true);
+      expect(result.activeLimit).toBe("fov");
+      expect(result.excess).toBe(20);
+      expect(result.state.fov).toBeGreaterThan(AR_CONSTANTS.FOV.MAX);
+      expect(result.state.fov).toBeLessThan(140);
+      expect(snapState(result.state).fov).toBe(AR_CONSTANTS.FOV.MAX);
+    });
+
+    test("upward vertical movement increases max distance and zoom", () => {
+      const base = state({ zoom: 0, maxDistance: 13_500 });
+      const result = updateVertical(base, createGestureInput(0, -10));
+
+      expect(result.state.minDistance).toBe(base.minDistance);
+      expect(result.state.maxDistance).toBe(17_500);
+      expect(result.state.zoom).toBeCloseTo(0.015, 8);
+      expect(result.state.fov).toBe(base.fov);
+      expect(result.rubberBanding).toBe(false);
+    });
+
+    test("max-distance overshoot is resisted and snaps to DISTANCE.MAX", () => {
+      const result = updateVertical(
+        state({ maxDistance: 134_000 }),
+        createGestureInput(0, -10),
+      );
+
+      expect(result.rubberBanding).toBe(true);
+      expect(result.activeLimit).toBe("max");
+      expect(result.excess).toBe(3_000);
+      expect(result.state.maxDistance).toBeGreaterThan(
+        AR_CONSTANTS.DISTANCE.MAX,
+      );
+      expect(result.state.maxDistance).toBeLessThan(138_000);
+      expect(snapState(result.state).maxDistance).toBe(
+        AR_CONSTANTS.DISTANCE.MAX,
+      );
+    });
+
+    test("zoom can be the active limit when distance coupling is disabled", () => {
+      const config: GestureConfig = {
+        ...gestureConfig,
+        distance: { ...gestureConfig.distance, max: 1_000_000_000 },
+        gesture: {
+          ...gestureConfig.gesture,
+          verticalPixelToMeter: 0,
+          verticalPixelToZoom: 1,
+          zoomCouplingFactor: 1,
+        },
+      };
+
+      const result = updateVertical(
+        state({ zoom: 0.5 }),
+        createGestureInput(0, -2),
+        config,
+      );
+
+      expect(result.rubberBanding).toBe(true);
+      expect(result.activeLimit).toBe("zoom");
+      expect(result.excess).toBe(1.5);
+      expect(result.state.zoom).toBeGreaterThan(1);
+      expect(result.state.zoom).toBeLessThan(2.5);
+    });
   });
 
-  test("updateState clamps FOV below min", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1, 1000, 0, -10);
-
-    expect(ctl.getState().fov).toBe(AR_CONSTANTS.FOV.MIN);
-  });
-
-  test("updateState normalizes min/max ordering", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1000, 500, 0, 60);
-
-    const state = ctl.getState();
-    expect(state.minDistance).toBeLessThanOrEqual(state.maxDistance);
-    expect(state.minDistance).toBe(500);
-    expect(state.maxDistance).toBe(1000);
-  });
-
-  test("updateState ensures min < max with margin", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 150, 0, 60);
-
-    const state = ctl.getState();
-    expect(state.maxDistance - state.minDistance).toBeGreaterThanOrEqual(100);
-  });
-
-  test("updateState clamps min to valid range", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(-100, 1000, 0, 60);
-
-    expect(ctl.getState().minDistance).toBe(AR_CONSTANTS.DISTANCE.MIN);
-  });
-
-  test("updateState clamps max to valid range", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1, 200000, 0, 60);
-
-    // When clamping to MAX, the margin logic might add 100
-    // So it becomes MAX + 100, but then gets clamped back to MAX
-    expect(ctl.getState().maxDistance).toBe(AR_CONSTANTS.DISTANCE.MAX);
-  });
-
-  test("updateState clamps zoom to valid range", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1, 1000, 2.5, 60);
-
-    expect(ctl.getState().cameraZoom).toBe(1);
-  });
-
-  test("updateState clamps zoom below min", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1, 1000, -0.5, 60);
-
-    expect(ctl.getState().cameraZoom).toBe(0);
-  });
-
-  test("getState returns a copy not a reference", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 60);
-
-    const state1 = ctl.getState();
-    const state2 = ctl.getState();
-
-    expect(state1).toEqual(state2);
-    expect(state1).not.toBe(state2);
-  });
-
-  test("getMinDistance returns clamped value", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 60);
-
-    expect(ctl.getMinDistance()).toBe(100);
-  });
-
-  test("getMaxDistance returns clamped value", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 60);
-
-    expect(ctl.getMaxDistance()).toBe(500);
-  });
-
-  test("getZoom returns clamped value", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 60);
-
-    expect(ctl.getZoom()).toBe(0.5);
-  });
-
-  test("getFOV returns clamped value", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 500, 0.5, 60);
-
-    expect(ctl.getFOV()).toBe(60);
-  });
-
-  // ============ GESTURE CREATION ============
-
-  test("creates a gesture", () => {
-    const ctl = new ARGestureController();
-    expect(ctl.createGesture()).toBeTruthy();
-  });
-
-  // ============ DEFAULT VALUES ============
-
-  test("initializes with default values", () => {
-    const ctl = new ARGestureController();
-    const state = ctl.getState();
-
-    expect(state.minDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MIN);
-    expect(state.maxDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MAX);
-    expect(state.cameraZoom).toBe(0);
-    expect(state.fov).toBe(AR_CONSTANTS.FOV.DEFAULT);
-  });
-
-  test("updateState with defaults keeps valid state", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(
-      AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
-      AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
-      0,
-      AR_CONSTANTS.FOV.DEFAULT,
-    );
-
-    const state = ctl.getState();
-    expect(state.minDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MIN);
-    expect(state.maxDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MAX);
-    expect(state.cameraZoom).toBe(0);
-    expect(state.fov).toBe(AR_CONSTANTS.FOV.DEFAULT);
-  });
-
-  // ============ CALLBACKS ============
-
-  test("setCallbacks stores callbacks", () => {
-    const ctl = new ARGestureController();
-    const mockCallbacks = {
-      onMinDistanceChange: jest.fn(),
-      onMaxDistanceChange: jest.fn(),
-      onCameraZoomChange: jest.fn(),
-      onFOVChange: jest.fn(),
-      onLimitHit: jest.fn(),
-      onLimitRelease: jest.fn(),
-      onGestureStart: jest.fn(),
-      onGestureUpdate: jest.fn(),
-      onGestureEnd: jest.fn(),
-    };
-
-    ctl.setCallbacks(mockCallbacks);
-    expect(true).toBe(true);
-  });
-
-  // ============ EDGE CASES ============
-
-  test("handles NaN values gracefully", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(NaN, NaN, NaN, NaN);
-
-    const state = ctl.getState();
-    // Should fall back to defaults
-    expect(state.minDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MIN);
-    expect(state.maxDistance).toBe(AR_CONSTANTS.DISTANCE.DEFAULT_MAX);
-    expect(state.cameraZoom).toBe(0);
-    expect(state.fov).toBe(AR_CONSTANTS.FOV.DEFAULT);
-  });
-
-  test("handles Infinity values gracefully", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(Infinity, Infinity, Infinity, Infinity);
-
-    const state = ctl.getState();
-    expect(isFinite(state.minDistance)).toBe(true);
-    expect(isFinite(state.maxDistance)).toBe(true);
-    expect(isFinite(state.cameraZoom)).toBe(true);
-    expect(isFinite(state.fov)).toBe(true);
-  });
-
-  test("updateState with very close values maintains margin", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(100, 101, 0, 60);
-
-    const state = ctl.getState();
-    expect(state.maxDistance - state.minDistance).toBeGreaterThanOrEqual(100);
-  });
-
-  test("updateState with very large values clamps to max", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(1e9, 2e9, 0, 60);
-
-    const state = ctl.getState();
-    // Should be MAX (clamped back from MAX + 100)
-    expect(state.maxDistance).toBe(AR_CONSTANTS.DISTANCE.MAX);
-  });
-
-  test("updateState with very small values clamps to min", () => {
-    const ctl = new ARGestureController();
-    ctl.updateState(-1e9, -1e8, 0, 60);
-
-    const state = ctl.getState();
-    // Should be MIN (clamped back from MIN - 100)
-    expect(state.minDistance).toBe(AR_CONSTANTS.DISTANCE.MIN);
+  test("getLimitExcess reports only actual overflow", () => {
+    expect(getLimitExcess(state(), "fov")).toBe(0);
+    expect(getLimitExcess(state({ fov: 125 }), "fov")).toBe(5);
+    expect(getLimitExcess(state({ zoom: -0.2 }), "zoom")).toBeCloseTo(0.2);
+    expect(
+      getLimitExcess(
+        state({ maxDistance: AR_CONSTANTS.DISTANCE.MAX + 500 }),
+        "max",
+      ),
+    ).toBe(500);
   });
 });
