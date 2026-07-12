@@ -51,6 +51,19 @@ int main() {
   assert(picked.has_value());
   assert(picked->poiIndex == 1);
 
+  // Identity quaternion follows the current JS compatibility convention:
+  // q*v*q^-1, radial depth, -Z forward, and X/Y axis remapping. A POI due
+  // north therefore lands on the left edge for this synthetic orientation.
+  state.timestampNs = 3;
+  state.hasOrientationQuaternion = true;
+  state.orientation = {0.0, 0.0, 0.0, 1.0};
+  engine.update(state);
+  const auto& quaternionFrame = engine.getFrame();
+  assert(quaternionFrame.sequence == 3);
+  assert(quaternionFrame.visiblePOIs.size() == 1);
+  assert(quaternionFrame.visiblePOIs[0].poiIndex == 0);
+  assert(near(quaternionFrame.visiblePOIs[0].x, 0.0, 3.0));
+
   std::cout << "cumquat_core_tests passed\n";
   return 0;
 }
