@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -22,7 +23,7 @@ class NativeCumquatModule final
   void initialize(jsi::Runtime& runtime, double handle, jsi::Array pois);
   double update(jsi::Runtime& runtime, double handle, jsi::Object sensorState);
   jsi::Object getFrame(jsi::Runtime& runtime, double handle);
-  jsi::Value pick(
+  std::optional<jsi::Object> pick(
       jsi::Runtime& runtime,
       double handle,
       double x,
