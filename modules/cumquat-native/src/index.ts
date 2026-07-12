@@ -12,6 +12,7 @@ export type {
   GeoPoint,
   PickResult,
   POIInput,
+  ProjectedPOI,
   Quaternion,
   SensorState,
   VisiblePOI,
