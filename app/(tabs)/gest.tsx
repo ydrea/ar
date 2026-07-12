@@ -1,6 +1,5 @@
-// app/gest-beta.tsx - Cleaned up version
-import { Plog, Rlog, Slog, Tlog } from "@/utils/tlog";
-import React, { useEffect, useState, useRef, useMemo } from "react";
+// app/gest-beta.tsx - Clean Beta AR View with proper logging
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -12,8 +11,8 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
-import { CameraView, CameraType } from "expo-camera";
-import { Svg, Line, Text as SvgText } from "react-native-svg";
+import { CameraType } from "expo-camera";
+import { Circle, Svg, Line, Text as SvgText } from "react-native-svg";
 import {
   projectToScreenWithClipping,
   sensorHub,
@@ -22,17 +21,20 @@ import {
   calculateBearing,
 } from "@/cumquat/sensors";
 import { AR_CONSTANTS } from "@/cumquat/constants";
-import { SensorSnapshot, Vec3 } from "@/cumquat/types";
-import {
-  ARGestureController,
-  GestureMode,
+import { SensorSnapshot } from "@/cumquat/types";
+import { useARGestureController } from "@/cumquat/gestures/useARGestureController";
+import type {
+  GestureState,
+  GestureUpdate,
   LimitType,
-} from "@/cumquat/gestures/ArGestureControler";
+} from "@/cumquat/gestures/types";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
+import { Dlog, Elog } from "@/utils/tlog";
 
 const { width, height } = Dimensions.get("window");
 
-// prettier-ignore
+// POIs array
 const POIS = [
   { id: 1, name: "Tresnjevacki trg Market", lat: 45.8, lon: 15.9667, alt: 1 },
   { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.967, alt: 1 },
@@ -51,134 +53,216 @@ const POIS = [
   { id: 15, name: "Vrtuljak Park", lat: 45.8015, lon: 15.964, alt: 1 },
   { id: 16, name: "Trg Kvatrić", lat: 45.798, lon: 15.9695, alt: 1 },
   {
-    id: 17,    name: "Poslovni centar Tresnjevka",    lat: 45.8015,    lon: 15.9695,    alt: 1,  },
+    id: 17,
+    name: "Poslovni centar Tresnjevka",
+    lat: 45.8015,
+    lon: 15.9695,
+    alt: 1,
+  },
   { id: 18, name: "Knjižara Algoritam", lat: 45.798, lon: 15.9665, alt: 1 },
   { id: 19, name: "Pekara Kruh", lat: 45.8025, lon: 15.9675, alt: 1 },
   { id: 20, name: "Ljekarna Jambo", lat: 45.7975, lon: 15.968, alt: 1 },
-  {    id: 21,    name: "Cibona",    lat: 45.803249057020885,    lon: 15.96347793271185,    alt: 92,  },
-  {    id: 22,    name: "Zagrepčanka",    lat: 45.798528643549396,    lon: 15.96245585283698,    alt: 95,  },
-  {    id: 23,    name: "Vjesnik",    lat: 45.793551576662246,    lon: 15.959205695046405,    alt: 67,  },
-  {    id: 24,    name: "Jelenovac",   lat: 45.82741901993836,    lon: 15.956039702679561,    alt: 135,  },
-  {    id: 25,    name: "Dom sportova",    lat: 45.80736039531922,    lon: 15.951976431579737,    alt: 0,  },
-  {    id: 26,    name: "Sljeme",    lat: 45.89946265300375,    lon: 15.94482091926767,    alt: 1033,  },
-  {    id: 27,    name: "Medvedgrad",    lat: 45.89946265300375,    lon: 15.94482091926767,    alt: 579,  },
-  {    id: 28,    name: "Grmoščica",    lat: 45.81692484023739,    lon: 15.92419321766124,    alt: 239,  },
-  {    id: 29,    name: "Trg Francuske Republike",    lat: 45.81050656334719,    lon: 15.95553638845962,    alt: 0,  },
+  {
+    id: 21,
+    name: "Cibona",
+    lat: 45.803249057020885,
+    lon: 15.96347793271185,
+    alt: 92,
+  },
+  {
+    id: 22,
+    name: "Zagrepčanka",
+    lat: 45.798528643549396,
+    lon: 15.96245585283698,
+    alt: 95,
+  },
+  {
+    id: 23,
+    name: "Vjesnik",
+    lat: 45.793551576662246,
+    lon: 15.959205695046405,
+    alt: 67,
+  },
+  {
+    id: 24,
+    name: "Jelenovac",
+    lat: 45.82741901993836,
+    lon: 15.956039702679561,
+    alt: 135,
+  },
+  {
+    id: 25,
+    name: "Dom sportova",
+    lat: 45.80736039531922,
+    lon: 15.951976431579737,
+    alt: 0,
+  },
+  {
+    id: 26,
+    name: "Sljeme",
+    lat: 45.89946265300375,
+    lon: 15.94482091926767,
+    alt: 1033,
+  },
+  {
+    id: 27,
+    name: "Medvedgrad",
+    lat: 45.89946265300375,
+    lon: 15.94482091926767,
+    alt: 579,
+  },
+  {
+    id: 28,
+    name: "Grmoščica",
+    lat: 45.81692484023739,
+    lon: 15.92419321766124,
+    alt: 239,
+  },
+  {
+    id: 29,
+    name: "Trg Francuske Republike",
+    lat: 45.81050656334719,
+    lon: 15.95553638845962,
+    alt: 0,
+  },
   { id: 30, name: "Otok ljubavi", lat: 45.779416, lon: 15.93489, alt: 7 },
   { id: 31, name: "Otok veslača", lat: 45.778193, lon: 15.93373, alt: 10 },
   { id: 32, name: "Otok Trešnjevka", lat: 45.782458, lon: 15.918919, alt: 10 },
-  {    id: 33,    name: "Otok Univerzijade",    lat: 45.784486,    lon: 15.914094,    alt: 15,  },
-  {    id: 34,    name: "Otok hrvatske mladeži",    lat: 45.778619,    lon: 15.925837,    alt: 14,  },
+  {
+    id: 33,
+    name: "Otok Univerzijade",
+    lat: 45.784486,
+    lon: 15.914094,
+    alt: 15,
+  },
+  {
+    id: 34,
+    name: "Otok hrvatske mladeži",
+    lat: 45.778619,
+    lon: 15.925837,
+    alt: 14,
+  },
   { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 },
+  // Add this to your POIS array temporarily
+  { id: 999, name: "TEST", lat: 45.8005, lon: 15.9563, alt: 1 },
 ];
 
 const normalizeAngle = (deg: number): number => ((deg % 360) + 360) % 360;
 
+const DEFAULT_GESTURE_STATE: GestureState = {
+  minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
+  maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
+  zoom: 0,
+  fov: AR_CONSTANTS.FOV.DEFAULT,
+};
+
+function getRubberBandIntensity(
+  limit: LimitType | null,
+  excess: number,
+): number {
+  if (!limit || excess <= 0) return 0;
+
+  if (limit === "fov") return Math.min(1, excess / 20);
+  if (limit === "zoom") return Math.min(1, excess / 0.2);
+  return Math.min(1, excess / 500);
+}
+
 export default function ARBetaView() {
-  const cameraRef = useRef<any>(null);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState<CameraType>("back");
+  // At the top of your component
+  console.log(`📱 Screen: ${width}x${height}, aspect: ${width / height}`);
+
+  const [cameraFacing] = useState<CameraType>("back");
   const [userLocation, setUserLocation] = useState<SensorSnapshot | null>(null);
   const [poiPositions, setPoiPositions] = useState<any[]>([]);
 
-  // Gesture state
-  const gestureController = useRef(new ARGestureController());
   const [minDistance, setMinDistance] = useState(
-    AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
+    DEFAULT_GESTURE_STATE.minDistance,
   );
   const [maxDistance, setMaxDistance] = useState(
-    AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
+    DEFAULT_GESTURE_STATE.maxDistance,
   );
-  const [cameraZoom, setCameraZoom] = useState(0);
-  const [fov, setFOV] = useState(AR_CONSTANTS.FOV.DEFAULT);
+  const [fov, setFOV] = useState(DEFAULT_GESTURE_STATE.fov);
   const [isRubberBanding, setIsRubberBanding] = useState(false);
-  const [activeLimit, setActiveLimit] = useState<LimitType>(null);
+  const [activeLimit, setActiveLimit] = useState<LimitType | null>(null);
   const [rubberBandIntensity, setRubberBandIntensity] = useState(0);
   const [isReady, setIsReady] = useState(false);
-  const [gestureMode, setGestureMode] = useState<GestureMode>(null);
-  const [isGestureActive, setIsGestureActive] = useState(false);
 
-  // Initialize gesture controller
-  useEffect(() => {
-    gestureController.current.setCallbacks({
-      onMinDistanceChange: (newMin, isRB) => {
-        setMinDistance(newMin);
-        if (isRB) {
-          setIsRubberBanding(true);
-          setActiveLimit("min");
-        }
-      },
-      onMaxDistanceChange: (newMax, isRB) => {
-        setMaxDistance(newMax);
-        if (isRB) {
-          setIsRubberBanding(true);
-          setActiveLimit("max");
-        }
-      },
-      onCameraZoomChange: (newZoom, isRB) => {
-        setCameraZoom(newZoom);
-        if (isRB) {
-          setIsRubberBanding(true);
-          setActiveLimit("zoom");
-        }
-      },
-      onFOVChange: (newFOV, isRB) => {
-        setFOV(newFOV);
-        if (isRB) {
-          setIsRubberBanding(true);
-          setActiveLimit("fov");
-          const excess =
-            newFOV < AR_CONSTANTS.FOV.MIN
-              ? AR_CONSTANTS.FOV.MIN - newFOV
-              : newFOV - AR_CONSTANTS.FOV.MAX;
-          setRubberBandIntensity(Math.min(1, excess / 20));
-        }
-      },
-      onLimitHit: (limit, excess) => {
-        setActiveLimit(limit);
-        setIsRubberBanding(true);
-        setRubberBandIntensity(Math.min(1, excess / 500));
-      },
-      onLimitRelease: () => {
-        setIsRubberBanding(false);
-        setRubberBandIntensity(0);
-        setActiveLimit(null);
-      },
-      onGestureStart: (mode) => {
-        setGestureMode(mode);
-        setIsGestureActive(true);
-      },
-      onGestureUpdate: (mode, state) => {
-        setGestureMode(mode);
-        if (state.min !== undefined) setMinDistance(state.min);
-        if (state.max !== undefined) setMaxDistance(state.max);
-        if (state.zoom !== undefined) setCameraZoom(state.zoom);
-        if (state.fov !== undefined) setFOV(state.fov);
-        if (state.isRubberBanding) setIsRubberBanding(true);
-      },
-      onGestureEnd: () => {
-        setIsGestureActive(false);
-        setGestureMode(null);
-        setIsRubberBanding(false);
-        setActiveLimit(null);
-        setRubberBandIntensity(0);
-      },
+  const {
+    cameraRef,
+    animatedZoom,
+    animatedProps,
+    AnimatedCamera,
+  } = useCameraZoom({
+    initialZoom: DEFAULT_GESTURE_STATE.zoom,
+    springConfig: {
+      stiffness: AR_CONSTANTS.GESTURE.SPRING_STIFFNESS,
+      damping: AR_CONSTANTS.GESTURE.SPRING_DAMPING,
+      mass: AR_CONSTANTS.GESTURE.SPRING_MASS,
+    },
+  });
+
+  const applyGestureState = useCallback((state: GestureState) => {
+    setMinDistance(state.minDistance);
+    setMaxDistance(state.maxDistance);
+    setFOV(state.fov);
+  }, []);
+
+  const handleGestureUpdate = useCallback(
+    (update: GestureUpdate) => {
+      applyGestureState(update.state);
+      setIsRubberBanding(update.rubberBanding);
+      setActiveLimit(update.activeLimit);
+      setRubberBandIntensity(
+        getRubberBandIntensity(update.activeLimit, update.excess),
+      );
+    },
+    [applyGestureState],
+  );
+
+  const handleGestureEnd = useCallback(
+    (state: GestureState) => {
+      applyGestureState(state);
+      setIsRubberBanding(false);
+      setActiveLimit(null);
+      setRubberBandIntensity(0);
+    },
+    [applyGestureState],
+  );
+
+  const gestureCallbacks = useMemo(
+    () => ({
+      onUpdate: handleGestureUpdate,
+      onEnd: handleGestureEnd,
+    }),
+    [handleGestureEnd, handleGestureUpdate],
+  );
+
+  const { gesture: pinchGesture, setState: setGestureState } =
+    useARGestureController({
+      initialState: DEFAULT_GESTURE_STATE,
+      callbacks: gestureCallbacks,
+      cameraZoom: animatedZoom,
     });
 
-    gestureController.current.updateState(
-      AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
-      AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
-      0,
-      AR_CONSTANTS.FOV.DEFAULT,
-    );
+  // Refs for tracking sensor changes
+  const lastOrientationRef = useRef({ x: 0, y: 0, z: 0, w: 1 });
+  const lastLocationRef = useRef<SensorSnapshot | null>(null);
+  const logCountRef = useRef(0);
 
-    const init = async () => {
-      await sensorHub.start();
-      setIsReady(true);
-    };
-    init();
+  useEffect(() => {
+    let cancelled = false;
+
+    sensorHub
+      .start()
+      .then(() => {
+        if (!cancelled) setIsReady(true);
+      })
+      .catch((error) => {
+        Elog("SensorHub start failed:", error);
+      });
 
     return () => {
+      cancelled = true;
       sensorHub.stop();
     };
   }, []);
@@ -186,6 +270,11 @@ export default function ARBetaView() {
   // Process POIs
   useEffect(() => {
     if (!userLocation) return;
+
+    Dlog(
+      `📍 Processing ${POIS.length} POIs at: ${userLocation.lat}, ${userLocation.lon}`,
+    );
+
     const processed = POIS.map((poi) => {
       const enuPos = geoToENU(
         userLocation.lat,
@@ -196,6 +285,8 @@ export default function ARBetaView() {
         poi.alt,
       );
       const rotatedPos = rotateVector(enuPos, userLocation.orientation);
+      ///////////////////
+
       const distance = Math.hypot(rotatedPos.x, rotatedPos.y, rotatedPos.z);
       const poiBearing = calculateBearing(
         userLocation.lat,
@@ -203,6 +294,18 @@ export default function ARBetaView() {
         poi.lat,
         poi.lon,
       );
+
+      // // Log first 5 POIs for debugging
+      // if (poi.id <= 5) {
+      //   Dlog(`  POI ${poi.id}: ${poi.name}`);
+      //   Dlog(
+      //     `    pos: (${rotatedPos.x.toFixed(1)}, ${rotatedPos.y.toFixed(1)}, ${rotatedPos.z.toFixed(1)})`,
+      //   );
+      //   Dlog(
+      //     `    distance: ${distance.toFixed(0)}m, bearing: ${poiBearing.toFixed(0)}°`,
+      //   );
+      // }
+
       return { ...poi, pos: rotatedPos, distance, bearing: poiBearing };
     });
     setPoiPositions(processed);
@@ -221,6 +324,20 @@ export default function ARBetaView() {
           minDistance,
           maxDistance,
         );
+
+        // // Debug first few POIs
+        // if (poi.id <= 3 && logCountRef.current % 10 === 0) {
+        //   Dlog(
+        //     `🔍 POI ${poi.id}: screen: (${screenPos.x.toFixed(1)}, ${screenPos.y.toFixed(1)})`,
+        //   );
+        //   Dlog(
+        //     `   visible: ${screenPos.visible}, clipped: ${screenPos.clipped}`,
+        //   );
+        //   Dlog(
+        //     `   clippedByDistance: ${screenPos.clippedByDistance}, depth: ${screenPos.depth}`,
+        //   );
+        // }
+
         return {
           ...poi,
           screenPos,
@@ -234,42 +351,53 @@ export default function ARBetaView() {
         (poi) => poi.isVisible || poi.isOffscreen || poi.isDistanceClipped,
       );
 
-    // Only log occasionally to reduce spam
-    if (result.length > 0 && Math.random() < 0.05) {
-      const visible = result.filter((p) => p.isVisible);
-      console.log(`📍 Visible: ${visible.length}/${result.length}`);
+    // // Throttled log
+    // logCountRef.current++;
+    // if (logCountRef.current % 20 === 0) {
+    //   const visible = result.filter((p) => p.isVisible);
+    //   Dlog(`📍 Visible: ${visible.length}/${result.length}`);
+    // }
+
+    // In the projectedPOIs useMemo, after calculating result:
+    const visiblePOIs = result.filter((p) => p.isVisible);
+    if (visiblePOIs.length > 0 && logCountRef.current % 5 === 0) {
+      visiblePOIs.forEach((poi) => {
+        Dlog(
+          `📍 ${poi.name}: screen (${poi.screenPos.x.toFixed(0)}, ${poi.screenPos.y.toFixed(0)})`,
+        );
+      });
     }
+
     return result;
   }, [poiPositions, fov, minDistance, maxDistance]);
-  ////////////////////////////////////////////////////////////////
-  // Sensor subscription - track orientation continuously
-  // Sensor subscription - track orientation continuously
-  // Sensor subscription - track orientation continuously
+
+  // Sensor subscription
   useEffect(() => {
     if (!isReady) return;
 
-    let lastOrientation = { x: 0, y: 0, z: 0, w: 1 };
     let lastLocationUpdate = 0;
 
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
 
-      // Check if orientation changed significantly
       const orient = snapshot.orientation;
-      const orientChanged =
-        Math.abs(orient.x - lastOrientation.x) > 0.001 ||
-        Math.abs(orient.y - lastOrientation.y) > 0.001 ||
-        Math.abs(orient.z - lastOrientation.z) > 0.001 ||
-        Math.abs(orient.w - lastOrientation.w) > 0.001;
+      const lastOrient = lastOrientationRef.current;
 
-      // Check if location changed significantly
+      // Check orientation change
+      const orientChanged =
+        Math.abs(orient.x - lastOrient.x) > 0.001 ||
+        Math.abs(orient.y - lastOrient.y) > 0.001 ||
+        Math.abs(orient.z - lastOrient.z) > 0.001 ||
+        Math.abs(orient.w - lastOrient.w) > 0.001;
+
+      // Check location change
       const now = Date.now();
       const isLocationUpdate = now - lastLocationUpdate > 500;
       let locationChanged = false;
 
       if (isLocationUpdate) {
-        const last = userLocation;
+        const last = lastLocationRef.current;
         if (
           !last ||
           Math.abs(last.lat - snapshot.lat) > 0.000001 ||
@@ -277,41 +405,31 @@ export default function ARBetaView() {
         ) {
           locationChanged = true;
           lastLocationUpdate = now;
+          lastLocationRef.current = snapshot;
         }
       }
 
-      // Only update if something actually changed
+      // Update if something changed
       if (locationChanged) {
+        Dlog(`📍 Location changed: ${snapshot.lat}, ${snapshot.lon}`);
         setUserLocation(snapshot);
-        lastOrientation = { ...orient };
+        lastOrientationRef.current = { ...orient };
       } else if (orientChanged) {
-        // Only update orientation, not location
         setUserLocation((prev) => {
           if (!prev) return snapshot;
-          // Don't update if orientation is the same
-          if (
-            prev.orientation.x === orient.x &&
-            prev.orientation.y === orient.y &&
-            prev.orientation.z === orient.z &&
-            prev.orientation.w === orient.w
-          ) {
-            return prev;
-          }
           return {
             ...prev,
             orientation: orient,
             timestamp: snapshot.timestamp,
           };
         });
-        lastOrientation = { ...orient };
+        lastOrientationRef.current = { ...orient };
       }
-    }, 100); // Slower update rate
+    }, 100);
 
     return () => clearInterval(interval);
   }, [isReady]);
 
-  ///////////////////////////////////////////////////////////////
-  const pinchGesture = gestureController.current.createGesture();
 
   const averageBearing = useMemo(() => {
     const visiblePOIs = projectedPOIs.filter((p) => p.isVisible);
@@ -328,25 +446,29 @@ export default function ARBetaView() {
       <GestureDetector gesture={pinchGesture}>
         <View style={styles.container}>
           {/* Camera View */}
-          {cameraReady && (
-            <CameraView
-              ref={cameraRef}
-              facing={cameraFacing}
-              mode="video"
-              zoom={cameraZoom}
-              onCameraReady={() => setCameraReady(true)}
-              onMountError={(error) => {
-                console.error("Camera mount error:", error);
-                setCameraReady(false);
-              }}
-              style={StyleSheet.absoluteFill}
-            />
-          )}
+          <AnimatedCamera
+            ref={cameraRef as any}
+            animatedProps={animatedProps}
+            facing={cameraFacing}
+            mode="video"
+            onCameraReady={() => Dlog("Camera ready")}
+            onMountError={(error: unknown) => {
+              Elog("Camera mount error:", error);
+            }}
+            style={StyleSheet.absoluteFill}
+          />
 
           {/* AR Overlay */}
+
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-            {/* POI counter - helps debug */}
-            <SvgText x={10} y={30} fill="rgba(255,255,255,0.3)" fontSize={10}>
+            {/* Debug counter */}
+            <SvgText
+              x={10}
+              y={30}
+              fill="rgba(255,255,255,0.9)"
+              fontSize={14}
+              fontWeight="bold"
+            >
               POIs: {projectedPOIs.filter((p) => p.isVisible).length} visible /{" "}
               {projectedPOIs.length} total
             </SvgText>
@@ -354,44 +476,43 @@ export default function ARBetaView() {
             {projectedPOIs.map((poi) => {
               const { x, y } = poi.screenPos;
 
-              // Skip if screen position is invalid (0,0) and not offscreen
               if (x === 0 && y === 0 && !poi.isOffscreen) return null;
 
-              const distanceRatio = Math.min(
-                1,
-                Math.max(
-                  0,
-                  (poi.distance - minDistance) /
-                    (Math.min(maxDistance, 5000) - minDistance),
-                ),
-              );
-              const opacity = 0.2 + (1 - distanceRatio) * 0.8;
-              const fontSize = 8 + (1 - distanceRatio) * 8;
+              // Simple distance-based opacity
+              const distanceRatio = Math.min(1, poi.distance / 2000);
+              const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
+              const fontSize = Math.max(10, 16 - distanceRatio * 6);
 
               // VISIBLE POI
               if (poi.isVisible) {
                 return (
                   <React.Fragment key={poi.id}>
+                    {/* 🟥 RED DOT - to confirm position */}
+                    <Circle cx={x} cy={y} r={10} fill="rgba(255, 0, 0, 0.8)" />
+
+                    {/* POI Name */}
                     <SvgText
                       x={x}
-                      y={y}
+                      y={y - 15}
                       fill={`rgba(255, 255, 255, ${opacity})`}
                       fontSize={fontSize}
-                      fontWeight="600"
+                      fontWeight="bold"
                       textAnchor="middle"
-                      stroke="rgba(0, 0, 0, 0.3)"
-                      strokeWidth={2}
+                      stroke="rgba(0, 0, 0, 0.6)"
+                      strokeWidth={3}
                     >
                       {poi.name}
                     </SvgText>
+
+                    {/* Distance */}
                     <SvgText
                       x={x}
                       y={y + fontSize + 6}
-                      fill={`rgba(255, 255, 255, ${opacity * 0.7})`}
+                      fill={`rgba(200, 200, 255, ${opacity * 0.7})`}
                       fontSize={Math.max(8, fontSize - 4)}
                       textAnchor="middle"
-                      stroke="rgba(0, 0, 0, 0.2)"
-                      strokeWidth={1}
+                      stroke="rgba(0, 0, 0, 0.3)"
+                      strokeWidth={2}
                     >
                       {poi.distance < 1000
                         ? `${Math.round(poi.distance)}m`
@@ -401,7 +522,7 @@ export default function ARBetaView() {
                 );
               }
 
-              // OFFSCREEN TRIANGLES
+              // OFFSCREEN TRIANGLES (same as before)
               const isTooFar =
                 poi.isDistanceClipped &&
                 poi.screenPos.clippedByDistance === "max";
@@ -418,8 +539,8 @@ export default function ARBetaView() {
                 const angle = Math.atan2(dy, dx);
 
                 let triX: number, triY: number, triAngle: number;
-                let strokeColor = `rgba(255, 255, 255, ${Math.max(0.3, opacity)})`;
-                const triSize = 6 + (1 - distanceRatio) * 8;
+                let strokeColor = `rgba(255, 255, 255, ${Math.max(0.4, opacity)})`;
+                const triSize = 8 + (1 - distanceRatio) * 6;
 
                 if (isTooFar) {
                   triX = centerX + Math.cos(angle) * (width / 2 - 40);
@@ -455,7 +576,6 @@ export default function ARBetaView() {
               return null;
             })}
           </Svg>
-
           {/* Center Reticle */}
           <View style={styles.reticle}>
             <View style={styles.reticleDot} />
@@ -501,16 +621,11 @@ export default function ARBetaView() {
             <TouchableOpacity
               style={styles.controlButton}
               onPress={() => {
-                gestureController.current.updateState(
-                  AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
-                  AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
-                  0,
-                  AR_CONSTANTS.FOV.DEFAULT,
-                );
-                setMinDistance(AR_CONSTANTS.DISTANCE.DEFAULT_MIN);
-                setMaxDistance(AR_CONSTANTS.DISTANCE.DEFAULT_MAX);
-                setCameraZoom(0);
-                setFOV(AR_CONSTANTS.FOV.DEFAULT);
+                const resetState = setGestureState(DEFAULT_GESTURE_STATE);
+                applyGestureState(resetState);
+                setIsRubberBanding(false);
+                setActiveLimit(null);
+                setRubberBandIntensity(0);
                 const snapshot = sensorHub.getSnapshot();
                 if (snapshot.lat !== 0 || snapshot.lon !== 0) {
                   setUserLocation(snapshot);

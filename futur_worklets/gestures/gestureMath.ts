@@ -1,5 +1,6 @@
 // cumquat/gestures/gestureMath.ts
 
+
 import { AR_CONSTANTS } from "./constants";
 import type { GestureState, GestureConfig, LimitType } from "./types";
 
@@ -134,7 +135,7 @@ export function updateHorizontal(
 ): GestureUpdateResult {
   "worklet";
 
-  const rawFov = base.fov + translationX * HORIZONTAL_PIXEL_TO_FOV;
+  const rawFov = base.fov + translationX * AR_CONSTANTS.GESTURE.HORIZONTAL_PIXEL_TO_FOV;
 
   const result = rubberBandResistance(
     rawFov,
@@ -168,15 +169,15 @@ export function updateVertical(
 
   const delta = -translationY;
 
-  const maxResult = rubberBand(
-    base.maxDistance + delta * VERTICAL_PIXEL_TO_METER,
+  const maxResult = rubberBandResistance(
+    base.maxDistance + delta * AR_CONSTANTS.GESTURE.VERTICAL_PIXEL_TO_METER,
     base.minDistance + 100,
     AR_CONSTANTS.DISTANCE.MAX,
     "max",
   );
 
-  const zoomResult = rubberBand(
-    base.zoom + delta * VERTICAL_PIXEL_TO_ZOOM * 0.5,
+  const zoomResult = rubberBandResistance(
+    base.zoom + delta * AR_CONSTANTS.GESTURE.VERTICAL_PIXEL_TO_ZOOM * 0.5,
     0,
     1,
     "zoom",

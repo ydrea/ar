@@ -1,130 +1,125 @@
-// hooks/useAnimatedCameraZoom.ts
-import { useRef, useCallback } from 'react';
-import { CameraView } from 'expo-camera';
+// hooks/useCameraZoom.ts
+import { useCallback, useRef } from "react";
+import { CameraView } from "expo-camera";
 import Animated, {
-  useSharedValue,
+  cancelAnimation,
+  Easing,
+  runOnJS,
   useAnimatedProps,
+  useSharedValue,
   withSpring,
   withTiming,
-  Easing,
-  cancelAnimation,
-  interpolate,
-  runOnJS,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
-// Animated props for CameraView
 const AnimatedCamera = Animated.createAnimatedComponent(CameraView);
 
-interface UseAnimatedCameraZoomProps {
+type ZoomAnimation = "spring" | "timing";
+
+type SpringConfig = {
+  damping?: number;
+  mass?: number;
+  stiffness?: number;
+};
+
+type UseCameraZoomOptions = {
   initialZoom?: number;
-  springConfig?: {
-    damping?: number;
-    mass?: number;
-    stiffness?: number;
-  };
+  springConfig?: SpringConfig;
   onZoomChange?: (zoom: number) => void;
+};
+
+function clampZoom(value: number): number {
+  "worklet";
+  return Math.min(1, Math.max(0, value));
 }
 
-export function useAnimatedCameraZoom({
+export function useCameraZoom({
   initialZoom = 0,
-  springConfig = { damping: 15, mass: 1, stiffness: 150 },
+  springConfig,
   onZoomChange,
-}: UseAnimatedCameraZoomProps = {}) {
-  const cameraRef = useRef<CameraView>(null);
-  const animatedZoom = useSharedValue(initialZoom);
+}: UseCameraZoomOptions = {}) {
+  const cameraRef = useRef<CameraView | null>(null);
+  const animatedZoom = useSharedValue(clampZoom(initialZoom));
   const isAnimating = useSharedValue(false);
-  
-  // Animated props for smooth camera updates
-  const animatedProps = useAnimatedProps(() => {
-    return {
-      zoom: animatedZoom.value,
-    };
-  });
-  
-  // Smooth zoom with spring animation
-  const animateZoom = useCallback((
-    targetZoom: number,
-    type: 'spring' | 'timing' = 'spring',
-    duration?: number
-  ) => {
-    'worklet';
-    
-    if (isAnimating.value) {
+
+  const damping = springConfig?.damping ?? 24;
+  const mass = springConfig?.mass ?? 1;
+  const stiffness = springConfig?.stiffness ?? 240;
+
+  const animatedProps = useAnimatedProps(() => ({
+    zoom: animatedZoom.value,
+  }));
+
+  const animateZoom = useCallback(
+    (
+      targetZoom: number,
+      animation: ZoomAnimation = "spring",
+      duration = 300,
+    ) => {
+      "worklet";
+
+      const target = clampZoom(targetZoom);
       cancelAnimation(animatedZoom);
-    }
-    
-    isAnimating.value = true;
-    
-    if (type === 'spring') {
-      animatedZoom.value = withSpring(targetZoom, {
-        damping: springConfig.damping,
-        mass: springConfig.mass,
-        stiffness: springConfig.stiffness,
-        velocity: 0,
-      }, () => {
+      isAnimating.value = true;
+
+      const finished = (didFinish?: boolean) => {
+        "worklet";
+
+        if (!didFinish) return;
         isAnimating.value = false;
+
         if (onZoomChange) {
-          runOnJS(onZoomChange)(targetZoom);
+          runOnJS(onZoomChange)(target);
         }
-      });
-    } else {
-      animatedZoom.value = withTiming(targetZoom, {
-        duration: duration || 300,
-        easing: Easing.inOut(Easing.cubic),
-      }, () => {
-        isAnimating.value = false;
-        if (onZoomChange) {
-          runOnJS(onZoomChange)(targetZoom);
-        }
-      });
-    }
-  }, [animatedZoom, isAnimating, springConfig, onZoomChange]);
-  
-  // Smooth zoom with gesture delta
-  const updateZoomFromGesture = useCallback((delta: number, currentZoom: number) => {
-    'worklet';
-    
-    // Calculate new zoom with momentum
-    let newZoom = currentZoom + delta;
-    newZoom = Math.max(0, Math.min(1, newZoom));
-    
-    // Apply with spring for smooth following
-    animatedZoom.value = withSpring(newZoom, {
-      damping: 20,
-      mass: 0.8,
-      stiffness: 180,
-      velocity: delta * 5, // Add velocity for momentum
-    });
-    
-    return newZoom;
-  }, [animatedZoom]);
-  
-  // Smooth zoom to specific point (e.g., double tap to zoom)
-  const zoomToPoint = useCallback((
-    targetZoom: number,
-    point?: { x: number, y: number }
-  ) => {
-    'worklet';
-    
-    // For future implementation: zoom to specific point in frame
-    // This would require camera native module support
-    animateZoom(targetZoom, 'spring');
-  }, [animateZoom]);
-  
-  // Reset zoom smoothly
+      };
+
+      if (animation === "timing") {
+        animatedZoom.value = withTiming(
+          target,
+          {
+            duration,
+            easing: Easing.inOut(Easing.cubic),
+          },
+          finished,
+        );
+        return;
+      }
+
+      animatedZoom.value = withSpring(
+        target,
+        {
+          damping,
+          mass,
+          stiffness,
+        },
+        finished,
+      );
+    },
+    [animatedZoom, damping, isAnimating, mass, onZoomChange, stiffness],
+  );
+
+  const setZoom = useCallback(
+    (zoom: number) => {
+      "worklet";
+
+      cancelAnimation(animatedZoom);
+      isAnimating.value = false;
+      animatedZoom.value = clampZoom(zoom);
+    },
+    [animatedZoom, isAnimating],
+  );
+
   const resetZoom = useCallback(() => {
-    animateZoom(0, 'spring');
+    animateZoom(0, "spring");
   }, [animateZoom]);
-  
+
   return {
     cameraRef,
     animatedZoom,
     animatedProps,
     AnimatedCamera,
     animateZoom,
-    updateZoomFromGesture,
-    zoomToPoint,
+    setZoom,
     resetZoom,
-    isAnimating: isAnimating.value,
+    isAnimating,
   };
 }
