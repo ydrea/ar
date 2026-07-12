@@ -49,6 +49,12 @@ struct SensorState {
   double viewportHeight{1.0};
 };
 
+enum class DistanceClip : std::uint8_t {
+  None = 0,
+  Min = 1,
+  Max = 2,
+};
+
 struct VisiblePOI {
   std::uint32_t poiIndex{0};
   double x{0.0};
@@ -57,11 +63,20 @@ struct VisiblePOI {
   double distance{0.0};
   double bearingDeg{0.0};
   bool visible{false};
+  bool clipped{true};
+  DistanceClip clippedByDistance{DistanceClip::None};
 };
 
 struct FrameSnapshot {
   std::uint64_t sequence{0};
   std::int64_t timestampNs{0};
+
+  // Stable POI-index order. Includes visible, offscreen, behind-camera, and
+  // distance-clipped entries so the UI can render labels and edge indicators
+  // without running a second projection implementation in JavaScript.
+  std::vector<VisiblePOI> projectedPOIs;
+
+  // Visible-only, depth-sorted view retained for picking and compatibility.
   std::vector<VisiblePOI> visiblePOIs;
 };
 
