@@ -29,6 +29,7 @@ type EngineLike = {
   update(sensorState: {
     timestampNs: number;
     location: {latitude: number; longitude: number; altitude: number};
+    orientationQuaternion: Quat;
     headingDegrees: number;
     pitchDegrees: number;
     rollDegrees: number;
@@ -101,6 +102,8 @@ function normalizeDegrees(value: number): number {
   return ((value % 360) + 360) % 360;
 }
 
+// Retained only as a human-readable diagnostic. Native projection now receives
+// the quaternion directly and does not depend on this Euler conversion.
 function quaternionToEulerDegrees(q: Quat): {
   heading: number;
   pitch: number;
@@ -210,7 +213,7 @@ function ensureEngine(parameters: ProjectionParameters): boolean {
     );
     engineSignature = signature;
     console.log(
-      `🧪 C++ projection debug initialized: ${registeredPOIs.length} POIs (${factory.getNativeVersion()})`,
+      `🧪 C++ projection debug initialized: ${registeredPOIs.length} POIs (${factory.getNativeVersion()}, direct quaternion)`,
     );
     return true;
   } catch (error) {
@@ -262,6 +265,8 @@ function updateNativeFrame(parameters: ProjectionParameters): boolean {
     engine.update({
       timestampNs: timestamp * 1_000_000,
       location,
+      orientationQuaternion: {...orientation},
+      // Kept for backward-compatible callers; native quaternion mode wins.
       headingDegrees: euler.heading,
       pitchDegrees: euler.pitch,
       rollDegrees: euler.roll,
@@ -305,7 +310,7 @@ function emitStatsIfComplete(): void {
 
   const meanDelta = stats.matched > 0 ? stats.totalDelta / stats.matched : 0;
   console.log(
-    `🧪 C++ vs JS frame ${stats.sequence}: native ${stats.nativeVisible}/${stats.expected}, JS ${stats.jsVisible}/${stats.expected}, matched ${stats.matched}, mean Δ ${meanDelta.toFixed(1)}px, max Δ ${stats.maxDelta.toFixed(1)}px, H/P/R ${stats.heading.toFixed(1)}/${stats.pitch.toFixed(1)}/${stats.roll.toFixed(1)}`,
+    `🧪 C++ vs JS frame ${stats.sequence}: native ${stats.nativeVisible}/${stats.expected}, JS ${stats.jsVisible}/${stats.expected}, matched ${stats.matched}, mean Δ ${meanDelta.toFixed(1)}px, max Δ ${stats.maxDelta.toFixed(1)}px, quaternion direct (Euler diag ${stats.heading.toFixed(1)}/${stats.pitch.toFixed(1)}/${stats.roll.toFixed(1)})`,
   );
   stats.samples.forEach((sample) => console.log(sample));
 }
