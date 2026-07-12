@@ -264,6 +264,9 @@ describe("beta ARView", () => {
 
   test("reset sends the default state through the gesture controller", async () => {
     await render(<ARView />);
+    await waitFor(() => {
+      expect(mockNativeEngineFactory.create).toHaveBeenCalled();
+    });
 
     fireEvent.press(screen.getByText("↺"));
 
