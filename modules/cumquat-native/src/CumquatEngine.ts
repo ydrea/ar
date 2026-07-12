@@ -16,6 +16,10 @@ export class CumquatEngine {
     this.#handle = NativeCumquat.createEngine(config);
   }
 
+  static getNativeVersion(): string {
+    return NativeCumquat.getVersion();
+  }
+
   static create(config: EngineConfig = {}): CumquatEngine {
     return new CumquatEngine(config);
   }
