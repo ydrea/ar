@@ -9,15 +9,16 @@ double radians(double degrees) { return degrees * kPi / 180.0; }
 }
 
 Vec3 worldToCamera(const Vec3& enu, const SensorState& sensorState) {
-  const double yaw = radians(-sensorState.headingDeg);
+  const double heading = radians(sensorState.headingDeg);
   const double pitch = radians(-sensorState.pitchDeg);
   const double roll = radians(-sensorState.rollDeg);
 
-  const double cy = std::cos(yaw);
-  const double sy = std::sin(yaw);
+  // ENU: +x east, +y north, +z up. Camera: +x right, +y forward, +z up.
+  const double ch = std::cos(heading);
+  const double sh = std::sin(heading);
   const Vec3 yawed{
-      cy * enu.x - sy * enu.y,
-      sy * enu.x + cy * enu.y,
+      ch * enu.x - sh * enu.y,
+      sh * enu.x + ch * enu.y,
       enu.z,
   };
 
