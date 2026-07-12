@@ -76,7 +76,7 @@ NativeCumquatModule::NativeCumquatModule(
     : NativeCumquatCxxSpec(std::move(jsInvoker)) {}
 
 std::string NativeCumquatModule::getVersion(jsi::Runtime&) {
-  return "0.1.0-cpp";
+  return "0.1.1-cpp";
 }
 
 double NativeCumquatModule::createEngine(
@@ -177,6 +177,34 @@ double NativeCumquatModule::update(
       numberOr(runtime, sensorObject, "viewportWidth", 1.0);
   sensorState.viewportHeight =
       numberOr(runtime, sensorObject, "viewportHeight", 1.0);
+
+  auto orientationValue = property(runtime, sensorObject, "orientationQuaternion");
+  if (orientationValue.isObject()) {
+    auto orientationObject = orientationValue.asObject(runtime);
+    sensorState.orientation = {
+        numberOr(runtime, orientationObject, "x", 0.0),
+        numberOr(runtime, orientationObject, "y", 0.0),
+        numberOr(runtime, orientationObject, "z", 0.0),
+        numberOr(runtime, orientationObject, "w", 1.0),
+    };
+
+    validateFinite(runtime, sensorState.orientation.x, "orientationQuaternion.x");
+    validateFinite(runtime, sensorState.orientation.y, "orientationQuaternion.y");
+    validateFinite(runtime, sensorState.orientation.z, "orientationQuaternion.z");
+    validateFinite(runtime, sensorState.orientation.w, "orientationQuaternion.w");
+
+    const double quaternionNorm = std::sqrt(
+        sensorState.orientation.x * sensorState.orientation.x +
+        sensorState.orientation.y * sensorState.orientation.y +
+        sensorState.orientation.z * sensorState.orientation.z +
+        sensorState.orientation.w * sensorState.orientation.w);
+    if (quaternionNorm <= std::numeric_limits<double>::epsilon()) {
+      throw jsi::JSError(
+          runtime,
+          "NativeCumquat orientation quaternion cannot have zero length");
+    }
+    sensorState.hasOrientationQuaternion = true;
+  }
 
   validateFinite(runtime, sensorState.location.latitudeDeg, "location.latitude");
   validateFinite(runtime, sensorState.location.longitudeDeg, "location.longitude");
