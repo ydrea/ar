@@ -83,7 +83,7 @@ bool projectToScreen(
     // JS compatibility mode: radial depth, -Z forward test, axis swap, separate
     // vertical FOV calculation, and the existing 200px offscreen margin.
     depth = camera.length();
-    if (depth <= config.nearMeters || depth >= config.farMeters) return false;
+    if (depth < config.nearMeters || depth > config.farMeters) return false;
     if (camera.z > 0.0) return false;
 
     const double horizontalFocal =
