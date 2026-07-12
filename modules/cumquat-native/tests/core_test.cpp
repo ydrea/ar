@@ -22,6 +22,7 @@ int main() {
   engine.initialize({
       {"north", "North", {45.80141, 15.95619, 120.0}},
       {"east", "East", {45.80041, 15.95748, 120.0}},
+      {"far", "Far", {46.80041, 15.95619, 120.0}},
   });
 
   cumquat::SensorState state;
@@ -34,15 +35,21 @@ int main() {
   engine.update(state);
   const auto& northFrame = engine.getFrame();
   assert(northFrame.sequence == 1);
+  assert(northFrame.projectedPOIs.size() == 3);
   assert(northFrame.visiblePOIs.size() == 1);
   assert(northFrame.visiblePOIs[0].poiIndex == 0);
   assert(near(northFrame.visiblePOIs[0].x, 500.0));
+  assert(northFrame.projectedPOIs[2].clipped);
+  assert(
+      northFrame.projectedPOIs[2].clippedByDistance ==
+      cumquat::DistanceClip::Max);
 
   state.timestampNs = 2;
   state.headingDeg = 90.0;
   engine.update(state);
   const auto& eastFrame = engine.getFrame();
   assert(eastFrame.sequence == 2);
+  assert(eastFrame.projectedPOIs.size() == 3);
   assert(eastFrame.visiblePOIs.size() == 1);
   assert(eastFrame.visiblePOIs[0].poiIndex == 1);
   assert(near(eastFrame.visiblePOIs[0].x, 500.0));
@@ -60,6 +67,7 @@ int main() {
   engine.update(state);
   const auto& quaternionFrame = engine.getFrame();
   assert(quaternionFrame.sequence == 3);
+  assert(quaternionFrame.projectedPOIs.size() == 3);
   assert(quaternionFrame.visiblePOIs.size() == 1);
   assert(quaternionFrame.visiblePOIs[0].poiIndex == 0);
   assert(near(quaternionFrame.visiblePOIs[0].x, 0.0, 3.0));
