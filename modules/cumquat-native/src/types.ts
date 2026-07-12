@@ -6,6 +6,13 @@ export type GeoPoint = {
   altitude: number;
 };
 
+export type Quaternion = {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+};
+
 export type POIInput = GeoPoint & {
   id: string;
   name?: string;
@@ -21,6 +28,7 @@ export type EngineConfig = {
 export type SensorState = {
   timestampNs: number;
   location: GeoPoint;
+  orientationQuaternion?: Quaternion;
   headingDegrees: number;
   pitchDegrees: number;
   rollDegrees: number;
