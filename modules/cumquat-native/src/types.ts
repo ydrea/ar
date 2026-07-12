@@ -46,10 +46,16 @@ export type VisiblePOI = {
   visible: boolean;
 };
 
+export type ProjectedPOI = VisiblePOI & {
+  clipped: boolean;
+  clippedByDistance: "min" | "max" | null;
+};
+
 export type FrameSnapshot = {
   sequence: number;
   timestampNs: number;
-  visiblePOIs: readonly VisiblePOI[];
+  projectedPOIs: readonly ProjectedPOI[];
+  visiblePOIs: readonly ProjectedPOI[];
 };
 
 export type PickResult = {
