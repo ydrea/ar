@@ -69,6 +69,41 @@ void validateFinite(
   }
 }
 
+jsi::Object serializeProjectedPOI(
+    jsi::Runtime& runtime,
+    const cumquat::VisiblePOI& source) {
+  jsi::Object output(runtime);
+  output.setProperty(runtime, "poiIndex", static_cast<double>(source.poiIndex));
+  output.setProperty(runtime, "x", source.x);
+  output.setProperty(runtime, "y", source.y);
+  output.setProperty(runtime, "depth", source.depth);
+  output.setProperty(runtime, "distance", source.distance);
+  output.setProperty(runtime, "bearing", source.bearingDeg);
+  output.setProperty(runtime, "visible", source.visible);
+  output.setProperty(runtime, "clipped", source.clipped);
+
+  switch (source.clippedByDistance) {
+    case cumquat::DistanceClip::Min:
+      output.setProperty(
+          runtime,
+          "clippedByDistance",
+          jsi::String::createFromUtf8(runtime, "min"));
+      break;
+    case cumquat::DistanceClip::Max:
+      output.setProperty(
+          runtime,
+          "clippedByDistance",
+          jsi::String::createFromUtf8(runtime, "max"));
+      break;
+    case cumquat::DistanceClip::None:
+    default:
+      output.setProperty(runtime, "clippedByDistance", jsi::Value::null());
+      break;
+  }
+
+  return output;
+}
+
 } // namespace
 
 NativeCumquatModule::NativeCumquatModule(
@@ -76,7 +111,7 @@ NativeCumquatModule::NativeCumquatModule(
     : NativeCumquatCxxSpec(std::move(jsInvoker)) {}
 
 std::string NativeCumquatModule::getVersion(jsi::Runtime&) {
-  return "0.1.1-cpp";
+  return "0.2.0-cpp";
 }
 
 double NativeCumquatModule::createEngine(
@@ -235,21 +270,24 @@ jsi::Object NativeCumquatModule::getFrame(
       "timestampNs",
       static_cast<double>(snapshot.timestampNs));
 
+  jsi::Array projected(runtime, snapshot.projectedPOIs.size());
+  for (std::size_t index = 0; index < snapshot.projectedPOIs.size(); ++index) {
+    projected.setValueAtIndex(
+        runtime,
+        index,
+        serializeProjectedPOI(runtime, snapshot.projectedPOIs[index]));
+  }
+  frame.setProperty(runtime, "projectedPOIs", std::move(projected));
+
   jsi::Array visible(runtime, snapshot.visiblePOIs.size());
   for (std::size_t index = 0; index < snapshot.visiblePOIs.size(); ++index) {
-    const auto& source = snapshot.visiblePOIs[index];
-    jsi::Object output(runtime);
-    output.setProperty(runtime, "poiIndex", static_cast<double>(source.poiIndex));
-    output.setProperty(runtime, "x", source.x);
-    output.setProperty(runtime, "y", source.y);
-    output.setProperty(runtime, "depth", source.depth);
-    output.setProperty(runtime, "distance", source.distance);
-    output.setProperty(runtime, "bearing", source.bearingDeg);
-    output.setProperty(runtime, "visible", source.visible);
-    visible.setValueAtIndex(runtime, index, std::move(output));
+    visible.setValueAtIndex(
+        runtime,
+        index,
+        serializeProjectedPOI(runtime, snapshot.visiblePOIs[index]));
   }
-
   frame.setProperty(runtime, "visiblePOIs", std::move(visible));
+
   return frame;
 }
 
