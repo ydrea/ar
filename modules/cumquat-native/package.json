@@ -13,3 +13,10 @@
     "jsSrcsDir": "specs",
     "android": {
       "javaPackageName": "com.cumquat.nativeengine"
+    }
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  }
+}
