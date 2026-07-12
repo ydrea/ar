@@ -1,19 +1,22 @@
 // sensors.ts - sensor hub and math utilities for Cumquat AR
-import { DeviceMotion } from "expo-sensors";
+import {DeviceMotion} from "expo-sensors";
 import * as Location from "expo-location";
-import { Tlog, Slog, Rlog, Plog } from "@/utils/tlog";
-import { AR_CONSTANTS } from "@/cumquat/constants";
-import { Quat, Vec3, ScreenPosition, SensorSnapshot } from "./types";
 
-const { DEG2RAD, RAD2DEG, WGS84_F, WGS84_A } = AR_CONSTANTS;
+import {AR_CONSTANTS} from "@/cumquat/constants";
+import {Tlog} from "@/utils/tlog";
+
+import {nativeProjectionDebug} from "./nativeProjectionDebug";
+import type {Quat, ScreenPosition, SensorSnapshot, Vec3} from "./types";
+
+const {DEG2RAD, RAD2DEG, WGS84_F, WGS84_A} = AR_CONSTANTS;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
 
 // ============ QUATERNION MATH ============
 
 function inverse(q: Quat): Quat {
-  // For unit quaternion, inverse is conjugate
   const norm = Math.hypot(q.x, q.y, q.z, q.w);
-  if (norm === 0) return { x: 0, y: 0, z: 0, w: 1 };
+  if (norm === 0) return {x: 0, y: 0, z: 0, w: 1};
+
   return {
     x: -q.x / norm,
     y: -q.y / norm,
@@ -23,25 +26,20 @@ function inverse(q: Quat): Quat {
 }
 
 function rotateVector(v: Vec3, q: Quat): Vec3 {
-  // Extract quaternion components
-  const { x: qx, y: qy, z: qz, w: qw } = q;
-  const { x: vx, y: vy, z: vz } = v;
+  const {x: qx, y: qy, z: qz, w: qw} = q;
+  const {x: vx, y: vy, z: vz} = v;
 
-  // Compute quaternion * vector * conjugate
-  // This is the standard formula: v' = q * v * q^-1
-
-  // t = 2 * cross(q.xyz, v)
   const tx = 2 * (qy * vz - qz * vy);
   const ty = 2 * (qz * vx - qx * vz);
   const tz = 2 * (qx * vy - qy * vx);
 
-  // v' = v + q.w * t + cross(q.xyz, t)
   const result = {
     x: vx + qw * tx + (qy * tz - qz * ty),
     y: vy + qw * ty + (qz * tx - qx * tz),
     z: vz + qw * tz + (qx * ty - qy * tx),
   };
 
+  nativeProjectionDebug.registerRotation(v, result, q);
   return result;
 }
 
@@ -52,45 +50,70 @@ class SensorHub {
     lat: 0,
     lon: 0,
     elevation: 0,
-    orientation: { x: 0, y: 0, z: 0, w: 1 },
+    orientation: {x: 0, y: 0, z: 0, w: 1},
     timestamp: 0,
   };
-  private deviceMotionSub: any = null;
-  private locationWatch: any = null;
 
-  async start() {
+  private deviceMotionSub: {remove(): void} | null = null;
+  private locationWatch: {remove(): void} | null = null;
+
+  async start(): Promise<void> {
     await this.startDeviceMotion();
     await this.startLocation();
     Tlog("✅ SensorHub started");
   }
 
   getSnapshot(): SensorSnapshot {
-    return { ...this.snapshot };
+    const nextSnapshot = {
+      ...this.snapshot,
+      orientation: {...this.snapshot.orientation},
+    };
+    nativeProjectionDebug.setSensorSnapshot(nextSnapshot);
+    return nextSnapshot;
   }
 
-  stop() {
+  stop(): void {
     this.deviceMotionSub?.remove();
     this.locationWatch?.remove();
+    this.deviceMotionSub = null;
+    this.locationWatch = null;
+    nativeProjectionDebug.dispose();
   }
 
-  private async startDeviceMotion() {
+  private async startDeviceMotion(): Promise<void> {
     await DeviceMotion.requestPermissionsAsync();
     DeviceMotion.setUpdateInterval(16);
+
     this.deviceMotionSub = DeviceMotion.addListener((motion) => {
       if (!motion.rotation) return;
 
-      const rot = motion.rotation as any;
+      const rot = motion.rotation as unknown as {
+        qx?: number;
+        qy?: number;
+        qz?: number;
+        qw?: number;
+        alpha?: number;
+        beta?: number;
+        gamma?: number;
+      };
       let orientation: Quat;
 
-      if (rot.qx !== undefined) {
-        orientation = { x: rot.qx, y: rot.qy, z: rot.qz, w: rot.qw };
-      } else if (rot.alpha !== undefined) {
-        // CORRECTED Euler to Quaternion conversion
-        // DeviceMotion uses: alpha (yaw), beta (pitch), gamma (roll)
-        // Order: Z (yaw), X (pitch), Y (roll) - common for mobile devices
-        const yaw = rot.alpha; // Z-axis rotation
-        const pitch = rot.beta; // X-axis rotation
-        const roll = rot.gamma; // Y-axis rotation
+      if (
+        rot.qx !== undefined &&
+        rot.qy !== undefined &&
+        rot.qz !== undefined &&
+        rot.qw !== undefined
+      ) {
+        orientation = {x: rot.qx, y: rot.qy, z: rot.qz, w: rot.qw};
+      } else if (
+        rot.alpha !== undefined &&
+        rot.beta !== undefined &&
+        rot.gamma !== undefined
+      ) {
+        // Preserve the existing Z/X/Y conversion used by the JS projection.
+        const yaw = rot.alpha;
+        const pitch = rot.beta;
+        const roll = rot.gamma;
 
         const cy = Math.cos(yaw * 0.5);
         const sy = Math.sin(yaw * 0.5);
@@ -99,7 +122,6 @@ class SensorHub {
         const cr = Math.cos(roll * 0.5);
         const sr = Math.sin(roll * 0.5);
 
-        // Correct order: Z * X * Y (yaw * pitch * roll)
         orientation = {
           w: cy * cp * cr + sy * sp * sr,
           x: cy * sp * cr + sy * cp * sr,
@@ -115,8 +137,8 @@ class SensorHub {
     });
   }
 
-  private async startLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+  private async startLocation(): Promise<void> {
+    const {status} = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") return;
 
     this.locationWatch = await Location.watchPositionAsync(
@@ -125,10 +147,10 @@ class SensorHub {
         timeInterval: 1000,
         distanceInterval: 1,
       },
-      (pos) => {
-        this.snapshot.lat = pos.coords.latitude;
-        this.snapshot.lon = pos.coords.longitude;
-        this.snapshot.elevation = pos.coords.altitude ?? 0;
+      (position) => {
+        this.snapshot.lat = position.coords.latitude;
+        this.snapshot.lon = position.coords.longitude;
+        this.snapshot.elevation = position.coords.altitude ?? 0;
       },
     );
   }
@@ -146,51 +168,58 @@ function geoToENU(
   lon2: number,
   alt2: number,
 ): Vec3 {
-  // Validate inputs
-  if (isNaN(lat2) || isNaN(lon2)) {
+  if (!Number.isFinite(lat2) || !Number.isFinite(lon2)) {
     Tlog(`Invalid POI coordinates: lat=${lat2}, lon=${lon2}`);
-    return { x: 0, y: 0, z: 0 };
+    return {x: 0, y: 0, z: 0};
   }
-  const φ1 = lat1 * DEG2RAD;
-  const λ1 = lon1 * DEG2RAD;
-  const φ2 = lat2 * DEG2RAD;
-  const λ2 = lon2 * DEG2RAD;
 
-  const sinφ1 = Math.sin(φ1);
-  const cosφ1 = Math.cos(φ1);
-  const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinφ1 * sinφ1);
+  const phi1 = lat1 * DEG2RAD;
+  const lambda1 = lon1 * DEG2RAD;
+  const phi2 = lat2 * DEG2RAD;
+  const lambda2 = lon2 * DEG2RAD;
 
-  // User ECEF
-  const userX = (N + alt1) * cosφ1 * Math.cos(λ1);
-  const userY = (N + alt1) * cosφ1 * Math.sin(λ1);
-  const userZ = (N * (1 - WGS84_E2) + alt1) * sinφ1;
+  const sinPhi1 = Math.sin(phi1);
+  const cosPhi1 = Math.cos(phi1);
+  const n1 = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinPhi1 * sinPhi1);
 
-  // POI ECEF
-  const sinφ2 = Math.sin(φ2);
-  const cosφ2 = Math.cos(φ2);
-  const N2 = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinφ2 * sinφ2);
-  const poiX = (N2 + alt2) * cosφ2 * Math.cos(λ2);
-  const poiY = (N2 + alt2) * cosφ2 * Math.sin(λ2);
-  const poiZ = (N2 * (1 - WGS84_E2) + alt2) * sinφ2;
+  const userX = (n1 + alt1) * cosPhi1 * Math.cos(lambda1);
+  const userY = (n1 + alt1) * cosPhi1 * Math.sin(lambda1);
+  const userZ = (n1 * (1 - WGS84_E2) + alt1) * sinPhi1;
 
-  // Delta ECEF
+  const sinPhi2 = Math.sin(phi2);
+  const cosPhi2 = Math.cos(phi2);
+  const n2 = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinPhi2 * sinPhi2);
+
+  const poiX = (n2 + alt2) * cosPhi2 * Math.cos(lambda2);
+  const poiY = (n2 + alt2) * cosPhi2 * Math.sin(lambda2);
+  const poiZ = (n2 * (1 - WGS84_E2) + alt2) * sinPhi2;
+
   const dx = poiX - userX;
   const dy = poiY - userY;
   const dz = poiZ - userZ;
 
-  // Transform to ENU (local East, North, Up)
-  // These values should be in meters, typically small (0-50000)
-  const east = -Math.sin(λ1) * dx + Math.cos(λ1) * dy;
-  const north =
-    -Math.sin(φ1) * Math.cos(λ1) * dx -
-    Math.sin(φ1) * Math.sin(λ1) * dy +
-    Math.cos(φ1) * dz;
-  const up =
-    Math.cos(φ1) * Math.cos(λ1) * dx +
-    Math.cos(φ1) * Math.sin(λ1) * dy +
-    Math.sin(φ1) * dz;
+  const result = {
+    x: -Math.sin(lambda1) * dx + Math.cos(lambda1) * dy,
+    y:
+      -Math.sin(phi1) * Math.cos(lambda1) * dx -
+      Math.sin(phi1) * Math.sin(lambda1) * dy +
+      Math.cos(phi1) * dz,
+    z:
+      Math.cos(phi1) * Math.cos(lambda1) * dx +
+      Math.cos(phi1) * Math.sin(lambda1) * dy +
+      Math.sin(phi1) * dz,
+  };
 
-  return { x: east, y: north, z: up };
+  nativeProjectionDebug.registerGeo(
+    result,
+    lat1,
+    lon1,
+    alt1,
+    lat2,
+    lon2,
+    alt2,
+  );
+  return result;
 }
 
 // ============ BEARING CALCULATION ============
@@ -201,23 +230,19 @@ function calculateBearing(
   poiLat: number,
   poiLon: number,
 ): number {
-  const φ1 = userLat * DEG2RAD;
-  const φ2 = poiLat * DEG2RAD;
-  const Δλ = (poiLon - userLon) * DEG2RAD;
+  const phi1 = userLat * DEG2RAD;
+  const phi2 = poiLat * DEG2RAD;
+  const deltaLambda = (poiLon - userLon) * DEG2RAD;
 
-  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
   const x =
-    Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
 
-  let bearing = Math.atan2(y, x) * RAD2DEG;
-  bearing = (bearing + 360) % 360; // Normalize to 0-360
-
-  return bearing;
+  return (Math.atan2(y, x) * RAD2DEG + 360) % 360;
 }
 
 // ============ PROJECTION ============
-
-// sensors.ts - Fixed projectToScreen
 
 function projectToScreen(
   cameraPos: Vec3,
@@ -225,43 +250,24 @@ function projectToScreen(
   height: number,
   fov: number,
 ): ScreenPosition {
-  // Use the 3D distance for depth
   const depth = Math.hypot(cameraPos.x, cameraPos.y, cameraPos.z);
 
-  // Check if behind camera
-  if (cameraPos.z > 0) {
+  if (cameraPos.z > 0 || depth <= 0.1) {
     return {
       x: 0,
       y: 0,
       visible: false,
       clipped: true,
       clippedByDistance: null,
-      depth: depth,
+      depth,
     };
   }
 
-  if (depth <= 0.1) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clipped: true,
-      clippedByDistance: null,
-      depth: depth,
-    };
-  }
-
-  // Swap X and Y with negation - from working quat.js
   const correctedX = -cameraPos.y;
   const correctedY = -cameraPos.x;
-
-  // FOV in degrees, convert to radians
-  const fovRad = (fov * Math.PI) / 180;
-  const focalLength = width / 2 / Math.tan(fovRad / 2);
-
+  const focalLength = width / 2 / Math.tan((fov * DEG2RAD) / 2);
   const screenX = width / 2 + (correctedX / depth) * focalLength;
   const screenY = height / 2 - (correctedY / depth) * focalLength;
-
   const margin = 200;
   const visible =
     screenX >= -margin &&
@@ -275,22 +281,29 @@ function projectToScreen(
     visible,
     clipped: !visible,
     clippedByDistance: null,
-    depth: depth,
+    depth,
   };
 }
-/**
- * Project a camera-space position to screen coordinates with distance clipping
- *
- * @param cameraPos - Position in camera space (from rotateVector)
- * @param trueDistance - Actual Euclidean distance from user to POI (meters)
- * @param width - Screen width in pixels
- * @param height - Screen height in pixels
- * @param fov - Field of view in degrees
- * @param minDistance - Minimum visible RADIAL distance (meters)
- * @param maxDistance - Maximum visible RADIAL distance (meters)
- * @returns ScreenPosition with clipping information
- */
-// sensors.ts - Fixed projectToScreenWithClipping
+
+function compareProjection(
+  cameraPos: Vec3,
+  result: ScreenPosition,
+  trueDistance: number,
+  width: number,
+  height: number,
+  fov: number,
+  minDistance: number,
+  maxDistance: number,
+): ScreenPosition {
+  return nativeProjectionDebug.compareProjection(cameraPos, result, {
+    trueDistance,
+    width,
+    height,
+    fov,
+    minDistance,
+    maxDistance,
+  });
+}
 
 function projectToScreenWithClipping(
   cameraPos: Vec3,
@@ -301,60 +314,76 @@ function projectToScreenWithClipping(
   minDistance: number,
   maxDistance: number,
 ): ScreenPosition {
-  // Use TRUE DISTANCE for radial clipping
   if (trueDistance < minDistance) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clipped: true,
-      clippedByDistance: "min",
-      depth: trueDistance,
-    };
+    return compareProjection(
+      cameraPos,
+      {
+        x: 0,
+        y: 0,
+        visible: false,
+        clipped: true,
+        clippedByDistance: "min",
+        depth: trueDistance,
+      },
+      trueDistance,
+      width,
+      height,
+      fov,
+      minDistance,
+      maxDistance,
+    );
   }
 
   if (trueDistance > maxDistance) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clipped: true,
-      clippedByDistance: "max",
-      depth: trueDistance,
-    };
+    return compareProjection(
+      cameraPos,
+      {
+        x: 0,
+        y: 0,
+        visible: false,
+        clipped: true,
+        clippedByDistance: "max",
+        depth: trueDistance,
+      },
+      trueDistance,
+      width,
+      height,
+      fov,
+      minDistance,
+      maxDistance,
+    );
   }
 
-  // Check if POI is behind camera
   if (cameraPos.z > 0) {
-    return {
-      x: 0,
-      y: 0,
-      visible: false,
-      clipped: true,
-      clippedByDistance: null,
-      depth: trueDistance,
-    };
+    return compareProjection(
+      cameraPos,
+      {
+        x: 0,
+        y: 0,
+        visible: false,
+        clipped: true,
+        clippedByDistance: null,
+        depth: trueDistance,
+      },
+      trueDistance,
+      width,
+      height,
+      fov,
+      minDistance,
+      maxDistance,
+    );
   }
 
-  // Use TRUE DISTANCE for perspective projection
-  const depth = trueDistance;
-
-  // Calculate focal length
-  const fovRad = (fov * Math.PI) / 180;
-  const focalLength = width / 2 / Math.tan(fovRad / 2);
-
-  // Project
+  const focalLength = width / 2 / Math.tan((fov * DEG2RAD) / 2);
   const correctedX = -cameraPos.y;
   const correctedY = -cameraPos.x;
+  const screenX = width / 2 + (correctedX / trueDistance) * focalLength;
 
-  const screenX = width / 2 + (correctedX / depth) * focalLength;
-
-  // FIX: Use the same focal length but adjust for aspect ratio
-  // Since the screen is wider than tall, the vertical FOV is smaller
-  const verticalFov = fov / (width / height); // Adjust for aspect ratio
+  const verticalFov = fov / (width / height);
   const verticalFocalLength =
-    height / 2 / Math.tan((verticalFov * Math.PI) / 180 / 2);
-  const screenY = height / 2 - (correctedY / depth) * verticalFocalLength;
+    height / 2 / Math.tan((verticalFov * DEG2RAD) / 2);
+  const screenY =
+    height / 2 - (correctedY / trueDistance) * verticalFocalLength;
 
   const margin = 200;
   const visible =
@@ -363,17 +392,25 @@ function projectToScreenWithClipping(
     screenY >= -margin &&
     screenY <= height + margin;
 
-  return {
-    x: screenX,
-    y: screenY,
-    visible: visible,
-    clipped: !visible,
-    clippedByDistance: null,
-    depth: depth,
-    radialDistance: trueDistance,
-  };
+  return compareProjection(
+    cameraPos,
+    {
+      x: screenX,
+      y: screenY,
+      visible,
+      clipped: !visible,
+      clippedByDistance: null,
+      depth: trueDistance,
+      radialDistance: trueDistance,
+    },
+    trueDistance,
+    width,
+    height,
+    fov,
+    minDistance,
+    maxDistance,
+  );
 }
-// ============ EXPORTS ============
 
 export {
   sensorHub,
