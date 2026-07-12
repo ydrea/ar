@@ -21,7 +21,9 @@ Engine::Engine(EngineConfig config) : config_(config) {
 void Engine::initialize(std::vector<POI> pois) {
   pois_ = std::move(pois);
   frame_ = {};
-  frame_.visiblePOIs.reserve(std::min<std::size_t>(pois_.size(), config_.maxVisiblePOIs));
+  frame_.projectedPOIs.reserve(pois_.size());
+  frame_.visiblePOIs.reserve(
+      std::min<std::size_t>(pois_.size(), config_.maxVisiblePOIs));
   initialized_ = true;
 }
 
@@ -32,33 +34,50 @@ std::uint64_t Engine::update(const SensorState& sensorState) {
 
   frame_.sequence += 1;
   frame_.timestampNs = sensorState.timestampNs;
+  frame_.projectedPOIs.clear();
   frame_.visiblePOIs.clear();
 
   for (std::uint32_t index = 0; index < pois_.size(); ++index) {
     const POI& poi = pois_[index];
     const Vec3 enu = geo::ecefToENU(geo::toECEF(poi.position), sensorState.location);
     const double distance = enu.length();
-    if (distance < config_.nearMeters || distance > config_.farMeters) continue;
+    const double bearing = geo::initialBearingDeg(sensorState.location, poi.position);
+
+    VisiblePOI projected;
+    projected.poiIndex = index;
+    projected.distance = distance;
+    projected.bearingDeg = bearing;
+    projected.depth = distance;
+
+    if (distance < config_.nearMeters) {
+      projected.clippedByDistance = DistanceClip::Min;
+      frame_.projectedPOIs.push_back(projected);
+      continue;
+    }
+
+    if (distance > config_.farMeters) {
+      projected.clippedByDistance = DistanceClip::Max;
+      frame_.projectedPOIs.push_back(projected);
+      continue;
+    }
 
     const Vec3 camera = projection::worldToCamera(enu, sensorState);
     double x = 0.0;
     double y = 0.0;
-    double depth = 0.0;
+    double depth = distance;
     const bool visible = projection::projectToScreen(
         camera, sensorState, config_, x, y, depth);
-    if (!visible) continue;
 
-    frame_.visiblePOIs.push_back({
-        index,
-        x,
-        y,
-        depth,
-        distance,
-        geo::initialBearingDeg(sensorState.location, poi.position),
-        true,
-    });
+    projected.x = x;
+    projected.y = y;
+    projected.depth = depth;
+    projected.visible = visible;
+    projected.clipped = !visible;
+    frame_.projectedPOIs.push_back(projected);
 
-    if (frame_.visiblePOIs.size() >= config_.maxVisiblePOIs) break;
+    if (visible && frame_.visiblePOIs.size() < config_.maxVisiblePOIs) {
+      frame_.visiblePOIs.push_back(projected);
+    }
   }
 
   std::sort(
