@@ -27,11 +27,13 @@ import type {
   LimitType,
 } from "@/cumquat/gestures/types";
 import {useCameraZoom} from "@/hooks/useCameraZoom";
-import {
-  CumquatEngine,
-  type FrameSnapshot,
-  type ProjectedPOI as NativeProjectedPOI,
-} from "@/modules/cumquat-native/src";
+import type {
+  EngineConfig,
+  FrameSnapshot,
+  POIInput,
+  ProjectedPOI as NativeProjectedPOI,
+  SensorState,
+} from "@/modules/cumquat-native/src/types";
 import {RubberBandVisualFeedback} from "@/ui/RubberBandVisualFeedback";
 import {Dlog, Elog} from "@/utils/tlog";
 
@@ -52,6 +54,18 @@ type RenderPOI = SourcePOI & {
   isDistanceClipped: boolean;
   isOffscreen: boolean;
   isVisible: boolean;
+};
+
+type NativeEngine = {
+  initialize(pois: readonly POIInput[]): void;
+  update(sensorState: SensorState): number;
+  getFrame(): FrameSnapshot;
+  dispose(): void;
+};
+
+type NativeEngineFactory = {
+  create(config?: EngineConfig): NativeEngine;
+  getNativeVersion(): string;
 };
 
 type EngineMode = "starting" | "native" | "js-fallback";
@@ -167,7 +181,7 @@ const POIS: readonly SourcePOI[] = [
   {id: 999, name: "TEST", lat: 45.8005, lon: 15.9563, alt: 1},
 ];
 
-const NATIVE_POIS = POIS.map((poi) => ({
+const NATIVE_POIS: readonly POIInput[] = POIS.map((poi) => ({
   id: String(poi.id),
   name: poi.name,
   latitude: poi.lat,
@@ -181,6 +195,24 @@ const DEFAULT_GESTURE_STATE: GestureState = {
   zoom: 0,
   fov: AR_CONSTANTS.FOV.DEFAULT,
 };
+
+let cachedNativeFactory: NativeEngineFactory | null | undefined;
+
+function getNativeFactory(): NativeEngineFactory | null {
+  if (cachedNativeFactory !== undefined) return cachedNativeFactory;
+
+  try {
+    const nativePackage = require("@/modules/cumquat-native/src") as {
+      CumquatEngine: NativeEngineFactory;
+    };
+    cachedNativeFactory = nativePackage.CumquatEngine;
+  } catch (error) {
+    cachedNativeFactory = null;
+    Elog("Native Cumquat module unavailable; using JS fallback:", error);
+  }
+
+  return cachedNativeFactory;
+}
 
 const normalizeAngle = (degrees: number): number =>
   ((degrees % 360) + 360) % 360;
@@ -300,7 +332,7 @@ export default function ARBetaView() {
   const [rubberBandIntensity, setRubberBandIntensity] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
-  const nativeEngineRef = useRef<CumquatEngine | null>(null);
+  const nativeEngineRef = useRef<NativeEngine | null>(null);
   const nativeSignatureRef = useRef("");
   const nativeDisabledRef = useRef(false);
   const nativeFailureLoggedRef = useRef(false);
@@ -331,8 +363,11 @@ export default function ARBetaView() {
     nativeSignatureRef.current = "";
   }, []);
 
-  const ensureNativeEngine = useCallback((): CumquatEngine | null => {
+  const ensureNativeEngine = useCallback((): NativeEngine | null => {
     if (nativeDisabledRef.current) return null;
+
+    const factory = getNativeFactory();
+    if (!factory) return null;
 
     const nearMeters = Math.max(0.001, minDistance);
     const farMeters = Math.max(nearMeters + 0.001, maxDistance);
@@ -347,7 +382,7 @@ export default function ARBetaView() {
 
     disposeNativeEngine();
 
-    const engine = CumquatEngine.create({
+    const engine = factory.create({
       horizontalFovDegrees: fov,
       nearMeters,
       farMeters,
@@ -358,7 +393,7 @@ export default function ARBetaView() {
     nativeEngineRef.current = engine;
     nativeSignatureRef.current = signature;
     Dlog(
-      `⚙️ Native Cumquat initialized: ${POIS.length} POIs (${CumquatEngine.getNativeVersion()})`,
+      `⚙️ Native Cumquat initialized: ${POIS.length} POIs (${factory.getNativeVersion()})`,
     );
     return engine;
   }, [disposeNativeEngine, fov, maxDistance, minDistance]);
@@ -387,9 +422,7 @@ export default function ARBetaView() {
 
           const nextPOIs = mapNativeFrame(engine.getFrame());
           setProjectedPOIs(nextPOIs);
-          setEngineMode((current) =>
-            current === "native" ? current : "native",
-          );
+          setEngineMode("native");
 
           frameCountRef.current += 1;
           if (frameCountRef.current % 10 === 1) {
@@ -415,10 +448,9 @@ export default function ARBetaView() {
       setProjectedPOIs(
         projectWithJavaScript(snapshot, fov, minDistance, maxDistance),
       );
-      setEngineMode((current) =>
-        current === "js-fallback" ? current : "js-fallback",
-      );
-    }, [disposeNativeEngine, ensureNativeEngine, fov, maxDistance, minDistance],
+      setEngineMode("js-fallback");
+    },
+    [disposeNativeEngine, ensureNativeEngine, fov, maxDistance, minDistance],
   );
 
   const applyGestureState = useCallback((state: GestureState) => {
@@ -514,7 +546,7 @@ export default function ARBetaView() {
     <GestureDetector gesture={pinchGesture}>
       <View style={styles.container}>
         <AnimatedCamera
-          ref={cameraRef as never}
+          ref={cameraRef as any}
           animatedProps={animatedProps}
           facing={cameraFacing}
           mode="video"
@@ -539,7 +571,14 @@ export default function ARBetaView() {
 
           {projectedPOIs.map((poi) => {
             const {x, y} = poi.screenPos;
-            if (x === 0 && y === 0 && !poi.isOffscreen) return null;
+            if (
+              x === 0 &&
+              y === 0 &&
+              !poi.isOffscreen &&
+              !poi.isDistanceClipped
+            ) {
+              return null;
+            }
 
             const distanceRatio = Math.min(1, poi.distance / 2000);
             const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
