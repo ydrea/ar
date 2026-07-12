@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-reanimated";
-
+import { getCumquatNativeVersion } from "@/modules/cumquat-native/src";
 import { useColorScheme } from "@/components/useColorScheme";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 
@@ -24,7 +24,11 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-
+/////////////////////
+useEffect(() => {
+  console.log("🟢 Cumquat native:", getCumquatNativeVersion());
+}, []);
+/////////////////////
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
