@@ -12,6 +12,7 @@ export type {
   GeoPoint,
   PickResult,
   POIInput,
+  Quaternion,
   SensorState,
   VisiblePOI,
 } from './types';
