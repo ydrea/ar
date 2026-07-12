@@ -225,7 +225,7 @@ jsi::Object NativeCumquatModule::getFrame(
   return frame;
 }
 
-jsi::Value NativeCumquatModule::pick(
+std::optional<jsi::Object> NativeCumquatModule::pick(
     jsi::Runtime& runtime,
     double handle,
     double x,
@@ -238,7 +238,7 @@ jsi::Value NativeCumquatModule::pick(
   const auto engine = requireEngine(runtime, handle);
   const auto result = engine->pick(x, y, std::max(0.0, radiusPixels));
   if (!result.has_value()) {
-    return jsi::Value::null();
+    return std::nullopt;
   }
 
   jsi::Object output(runtime);
