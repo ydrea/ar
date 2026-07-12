@@ -12,6 +12,13 @@ struct GeoPoint {
   double altitudeMeters{0.0};
 };
 
+struct Quaternion {
+  double x{0.0};
+  double y{0.0};
+  double z{0.0};
+  double w{1.0};
+};
+
 struct POI {
   std::string id;
   std::string name;
@@ -28,9 +35,16 @@ struct EngineConfig {
 struct SensorState {
   std::int64_t timestampNs{0};
   GeoPoint location;
+
+  // Direct device quaternion mode preserves the exact JS q*v*q^-1 path.
+  Quaternion orientation;
+  bool hasOrientationQuaternion{false};
+
+  // Euler mode remains available for conventional/native callers and tests.
   double headingDeg{0.0};
   double pitchDeg{0.0};
   double rollDeg{0.0};
+
   double viewportWidth{1.0};
   double viewportHeight{1.0};
 };
