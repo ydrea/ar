@@ -21,6 +21,10 @@ class NativeCumquatModule final
   std::string getVersion(jsi::Runtime& runtime);
   double createEngine(jsi::Runtime& runtime, jsi::Object config);
   void initialize(jsi::Runtime& runtime, double handle, jsi::Array pois);
+  void setViewState(
+      jsi::Runtime& runtime,
+      double handle,
+      jsi::Object viewState);
   double update(jsi::Runtime& runtime, double handle, jsi::Object sensorState);
   jsi::Object getFrame(jsi::Runtime& runtime, double handle);
   std::optional<jsi::Object> pick(
