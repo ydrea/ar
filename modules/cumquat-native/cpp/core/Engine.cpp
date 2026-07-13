@@ -10,11 +10,9 @@
 namespace cumquat {
 
 Engine::Engine(EngineConfig config) : config_(config) {
-  if (config_.horizontalFovDeg <= 1.0 || config_.horizontalFovDeg >= 179.0) {
-    throw std::invalid_argument("horizontalFovDeg must be between 1 and 179 degrees");
-  }
-  if (config_.nearMeters < 0.0 || config_.farMeters <= config_.nearMeters) {
-    throw std::invalid_argument("invalid near/far distance range");
+  if (!std::isfinite(config_.datasetRadiusMeters) ||
+      config_.datasetRadiusMeters <= 0.0) {
+    throw std::invalid_argument("datasetRadiusMeters must be positive");
   }
 }
 
@@ -25,6 +23,23 @@ void Engine::initialize(std::vector<POI> pois) {
   frame_.visiblePOIs.reserve(
       std::min<std::size_t>(pois_.size(), config_.maxVisiblePOIs));
   initialized_ = true;
+}
+
+void Engine::setViewState(ViewState viewState) {
+  if (!std::isfinite(viewState.horizontalFovDeg) ||
+      viewState.horizontalFovDeg <= 1.0 ||
+      viewState.horizontalFovDeg >= 179.0) {
+    throw std::invalid_argument(
+        "horizontalFovDeg must be between 1 and 179 degrees");
+  }
+  if (!std::isfinite(viewState.minDistanceMeters) ||
+      !std::isfinite(viewState.maxDistanceMeters) ||
+      viewState.minDistanceMeters < 0.0 ||
+      viewState.maxDistanceMeters <= viewState.minDistanceMeters) {
+    throw std::invalid_argument("invalid view-state distance range");
+  }
+
+  viewState_ = viewState;
 }
 
 std::uint64_t Engine::update(const SensorState& sensorState) {
@@ -41,41 +56,44 @@ std::uint64_t Engine::update(const SensorState& sensorState) {
     const POI& poi = pois_[index];
     const Vec3 enu = geo::ecefToENU(geo::toECEF(poi.position), sensorState.location);
     const double distance = enu.length();
-    const double bearing = geo::initialBearingDeg(sensorState.location, poi.position);
+
+    // Hard dataset boundary: never project or serialize POIs outside the active
+    // spatial radius, regardless of the gesture-controlled view range.
+    if (distance > config_.datasetRadiusMeters) continue;
 
     VisiblePOI projected;
     projected.poiIndex = index;
     projected.distance = distance;
-    projected.bearingDeg = bearing;
+    projected.bearingDeg =
+        geo::initialBearingDeg(sensorState.location, poi.position);
     projected.depth = distance;
 
-    if (distance < config_.nearMeters) {
-      projected.clippedByDistance = DistanceClip::Min;
-      frame_.projectedPOIs.push_back(projected);
-      continue;
-    }
-
-    if (distance > config_.farMeters) {
-      projected.clippedByDistance = DistanceClip::Max;
-      frame_.projectedPOIs.push_back(projected);
-      continue;
-    }
-
+    // Project active POIs before applying gesture distance clipping so near/far
+    // edge indicators retain a useful direction whenever projection is possible.
     const Vec3 camera = projection::worldToCamera(enu, sensorState);
     double x = 0.0;
     double y = 0.0;
     double depth = distance;
-    const bool visible = projection::projectToScreen(
-        camera, sensorState, config_, x, y, depth);
+    const bool insideViewport = projection::projectToScreen(
+        camera, sensorState, viewState_, x, y, depth);
 
     projected.x = x;
     projected.y = y;
     projected.depth = depth;
-    projected.visible = visible;
-    projected.clipped = !visible;
+
+    if (distance < viewState_.minDistanceMeters) {
+      projected.clippedByDistance = DistanceClip::Min;
+    } else if (distance > viewState_.maxDistanceMeters) {
+      projected.clippedByDistance = DistanceClip::Max;
+    } else {
+      projected.visible = insideViewport;
+      projected.clipped = !insideViewport;
+    }
+
     frame_.projectedPOIs.push_back(projected);
 
-    if (visible && frame_.visiblePOIs.size() < config_.maxVisiblePOIs) {
+    if (projected.visible &&
+        frame_.visiblePOIs.size() < config_.maxVisiblePOIs) {
       frame_.visiblePOIs.push_back(projected);
     }
   }
@@ -88,6 +106,10 @@ std::uint64_t Engine::update(const SensorState& sensorState) {
       });
 
   return frame_.sequence;
+}
+
+const ViewState& Engine::getViewState() const noexcept {
+  return viewState_;
 }
 
 const FrameSnapshot& Engine::getFrame() const noexcept {
