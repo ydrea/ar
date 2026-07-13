@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import {GestureDetector} from "react-native-gesture-handler";
-import {CameraType} from "expo-camera";
+import type {CameraType} from "expo-camera";
 import {Circle, Line, Svg, Text as SvgText} from "react-native-svg";
 
 import {AR_CONSTANTS} from "@/cumquat/constants";
@@ -33,11 +33,13 @@ import type {
   POIInput,
   ProjectedPOI as NativeProjectedPOI,
   SensorState,
+  ViewState as NativeViewState,
 } from "@/modules/cumquat-native/src/types";
 import {RubberBandVisualFeedback} from "@/ui/RubberBandVisualFeedback";
 import {Dlog, Elog} from "@/utils/tlog";
 
 const {width, height} = Dimensions.get("window");
+const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 
 type SourcePOI = {
   id: number;
@@ -58,6 +60,7 @@ type RenderPOI = SourcePOI & {
 
 type NativeEngine = {
   initialize(pois: readonly POIInput[]): void;
+  setViewState(viewState: NativeViewState): void;
   update(sensorState: SensorState): number;
   getFrame(): FrameSnapshot;
   dispose(): void;
@@ -87,96 +90,24 @@ const POIS: readonly SourcePOI[] = [
   {id: 14, name: "Automehaničar Drop", lat: 45.797, lon: 15.967, alt: 1},
   {id: 15, name: "Vrtuljak Park", lat: 45.8015, lon: 15.964, alt: 1},
   {id: 16, name: "Trg Kvatrić", lat: 45.798, lon: 15.9695, alt: 1},
-  {
-    id: 17,
-    name: "Poslovni centar Tresnjevka",
-    lat: 45.8015,
-    lon: 15.9695,
-    alt: 1,
-  },
+  {id: 17, name: "Poslovni centar Tresnjevka", lat: 45.8015, lon: 15.9695, alt: 1},
   {id: 18, name: "Knjižara Algoritam", lat: 45.798, lon: 15.9665, alt: 1},
   {id: 19, name: "Pekara Kruh", lat: 45.8025, lon: 15.9675, alt: 1},
   {id: 20, name: "Ljekarna Jambo", lat: 45.7975, lon: 15.968, alt: 1},
-  {
-    id: 21,
-    name: "Cibona",
-    lat: 45.803249057020885,
-    lon: 15.96347793271185,
-    alt: 92,
-  },
-  {
-    id: 22,
-    name: "Zagrepčanka",
-    lat: 45.798528643549396,
-    lon: 15.96245585283698,
-    alt: 95,
-  },
-  {
-    id: 23,
-    name: "Vjesnik",
-    lat: 45.793551576662246,
-    lon: 15.959205695046405,
-    alt: 67,
-  },
-  {
-    id: 24,
-    name: "Jelenovac",
-    lat: 45.82741901993836,
-    lon: 15.956039702679561,
-    alt: 135,
-  },
-  {
-    id: 25,
-    name: "Dom sportova",
-    lat: 45.80736039531922,
-    lon: 15.951976431579737,
-    alt: 0,
-  },
-  {
-    id: 26,
-    name: "Sljeme",
-    lat: 45.89946265300375,
-    lon: 15.94482091926767,
-    alt: 1033,
-  },
-  {
-    id: 27,
-    name: "Medvedgrad",
-    lat: 45.89946265300375,
-    lon: 15.94482091926767,
-    alt: 579,
-  },
-  {
-    id: 28,
-    name: "Grmoščica",
-    lat: 45.81692484023739,
-    lon: 15.92419321766124,
-    alt: 239,
-  },
-  {
-    id: 29,
-    name: "Trg Francuske Republike",
-    lat: 45.81050656334719,
-    lon: 15.95553638845962,
-    alt: 0,
-  },
+  {id: 21, name: "Cibona", lat: 45.803249057020885, lon: 15.96347793271185, alt: 92},
+  {id: 22, name: "Zagrepčanka", lat: 45.798528643549396, lon: 15.96245585283698, alt: 95},
+  {id: 23, name: "Vjesnik", lat: 45.793551576662246, lon: 15.959205695046405, alt: 67},
+  {id: 24, name: "Jelenovac", lat: 45.82741901993836, lon: 15.956039702679561, alt: 135},
+  {id: 25, name: "Dom sportova", lat: 45.80736039531922, lon: 15.951976431579737, alt: 0},
+  {id: 26, name: "Sljeme", lat: 45.89946265300375, lon: 15.94482091926767, alt: 1033},
+  {id: 27, name: "Medvedgrad", lat: 45.89946265300375, lon: 15.94482091926767, alt: 579},
+  {id: 28, name: "Grmoščica", lat: 45.81692484023739, lon: 15.92419321766124, alt: 239},
+  {id: 29, name: "Trg Francuske Republike", lat: 45.81050656334719, lon: 15.95553638845962, alt: 0},
   {id: 30, name: "Otok ljubavi", lat: 45.779416, lon: 15.93489, alt: 7},
   {id: 31, name: "Otok veslača", lat: 45.778193, lon: 15.93373, alt: 10},
   {id: 32, name: "Otok Trešnjevka", lat: 45.782458, lon: 15.918919, alt: 10},
-  {
-    id: 33,
-    name: "Otok Univerzijade",
-    lat: 45.784486,
-    lon: 15.914094,
-    alt: 15,
-  },
-  {
-    id: 34,
-    name: "Otok hrvatske mladeži",
-    lat: 45.778619,
-    lon: 15.925837,
-    alt: 14,
-  },
+  {id: 33, name: "Otok Univerzijade", lat: 45.784486, lon: 15.914094, alt: 15},
+  {id: 34, name: "Otok hrvatske mladeži", lat: 45.778619, lon: 15.925837, alt: 14},
   {id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20},
   {id: 999, name: "TEST", lat: 45.8005, lon: 15.9563, alt: 1},
 ];
@@ -216,6 +147,15 @@ function getNativeFactory(): NativeEngineFactory | null {
 
 const normalizeAngle = (degrees: number): number =>
   ((degrees % 360) + 360) % 360;
+
+function toNativeViewState(state: GestureState): NativeViewState {
+  const minDistanceMeters = Math.max(0, state.minDistance);
+  return {
+    horizontalFovDegrees: state.fov,
+    minDistanceMeters,
+    maxDistanceMeters: Math.max(minDistanceMeters + 0.001, state.maxDistance),
+  };
+}
 
 function getRubberBandIntensity(
   limit: LimitType | null,
@@ -257,21 +197,14 @@ function mapNativePOI(nativePOI: NativeProjectedPOI): RenderPOI {
 }
 
 function mapNativeFrame(frame: FrameSnapshot): RenderPOI[] {
-  if (frame.projectedPOIs.length !== POIS.length) {
-    throw new Error(
-      `NativeCumquat returned ${frame.projectedPOIs.length}/${POIS.length} projected POIs`,
-    );
-  }
   return frame.projectedPOIs.map(mapNativePOI);
 }
 
 function projectWithJavaScript(
   snapshot: SensorSnapshot,
-  fov: number,
-  minDistance: number,
-  maxDistance: number,
+  state: GestureState,
 ): RenderPOI[] {
-  return POIS.map((poi) => {
+  return POIS.flatMap((poi) => {
     const enuPosition = geoToENU(
       snapshot.lat,
       snapshot.lon,
@@ -286,6 +219,9 @@ function projectWithJavaScript(
       cameraPosition.y,
       cameraPosition.z,
     );
+
+    if (distance > DATASET_RADIUS_METERS) return [];
+
     const bearing = calculateBearing(
       snapshot.lat,
       snapshot.lon,
@@ -297,12 +233,12 @@ function projectWithJavaScript(
       distance,
       width,
       height,
-      fov,
-      minDistance,
-      maxDistance,
+      state.fov,
+      state.minDistance,
+      state.maxDistance,
     );
 
-    return {
+    return [{
       ...poi,
       distance,
       bearing,
@@ -312,7 +248,7 @@ function projectWithJavaScript(
         screenPos.clipped && screenPos.clippedByDistance == null,
       isVisible:
         screenPos.visible && screenPos.clippedByDistance == null,
-    };
+    }];
   });
 }
 
@@ -333,9 +269,9 @@ export default function ARBetaView() {
   const [isReady, setIsReady] = useState(false);
 
   const nativeEngineRef = useRef<NativeEngine | null>(null);
-  const nativeSignatureRef = useRef("");
   const nativeDisabledRef = useRef(false);
   const nativeFailureLoggedRef = useRef(false);
+  const gestureStateRef = useRef<GestureState>(DEFAULT_GESTURE_STATE);
   const lastLocationRef = useRef<SensorSnapshot | null>(null);
   const frameCountRef = useRef(0);
 
@@ -360,43 +296,56 @@ export default function ARBetaView() {
   const disposeNativeEngine = useCallback(() => {
     nativeEngineRef.current?.dispose();
     nativeEngineRef.current = null;
-    nativeSignatureRef.current = "";
   }, []);
+
+  const disableNative = useCallback(
+    (error: unknown) => {
+      nativeDisabledRef.current = true;
+      disposeNativeEngine();
+      setEngineMode("js-fallback");
+      if (!nativeFailureLoggedRef.current) {
+        nativeFailureLoggedRef.current = true;
+        Elog("Native Cumquat failed; switching to JS fallback:", error);
+      }
+    },
+    [disposeNativeEngine],
+  );
 
   const ensureNativeEngine = useCallback((): NativeEngine | null => {
     if (nativeDisabledRef.current) return null;
+    if (nativeEngineRef.current) return nativeEngineRef.current;
 
     const factory = getNativeFactory();
     if (!factory) return null;
 
-    const nearMeters = Math.max(0.001, minDistance);
-    const farMeters = Math.max(nearMeters + 0.001, maxDistance);
-    const signature = `${fov.toFixed(4)}:${nearMeters.toFixed(3)}:${farMeters.toFixed(3)}`;
-
-    if (
-      nativeEngineRef.current &&
-      nativeSignatureRef.current === signature
-    ) {
-      return nativeEngineRef.current;
-    }
-
-    disposeNativeEngine();
-
     const engine = factory.create({
-      horizontalFovDegrees: fov,
-      nearMeters,
-      farMeters,
+      datasetRadiusMeters: DATASET_RADIUS_METERS,
       maxVisiblePOIs: POIS.length,
     });
     engine.initialize(NATIVE_POIS);
+    engine.setViewState(toNativeViewState(gestureStateRef.current));
 
     nativeEngineRef.current = engine;
-    nativeSignatureRef.current = signature;
     Dlog(
       `⚙️ Native Cumquat initialized: ${POIS.length} POIs (${factory.getNativeVersion()})`,
     );
     return engine;
-  }, [disposeNativeEngine, fov, maxDistance, minDistance]);
+  }, []);
+
+  const commitNativeViewState = useCallback(
+    (state: GestureState) => {
+      gestureStateRef.current = state;
+      const engine = nativeEngineRef.current;
+      if (!engine || nativeDisabledRef.current) return;
+
+      try {
+        engine.setViewState(toNativeViewState(state));
+      } catch (error) {
+        disableNative(error);
+      }
+    },
+    [disableNative],
+  );
 
   const renderSnapshot = useCallback(
     (snapshot: SensorSnapshot) => {
@@ -427,7 +376,7 @@ export default function ARBetaView() {
           frameCountRef.current += 1;
           if (frameCountRef.current % 10 === 1) {
             const visible = nextPOIs.filter((poi) => poi.isVisible);
-            Dlog(`⚙️ Native frame: ${visible.length}/${nextPOIs.length} visible`);
+            Dlog(`⚙️ Native frame: ${visible.length}/${nextPOIs.length} active`);
             visible.slice(0, 6).forEach((poi) => {
               Dlog(
                 `📍 ${poi.name}: screen (${poi.screenPos.x.toFixed(0)}, ${poi.screenPos.y.toFixed(0)})`,
@@ -436,28 +385,27 @@ export default function ARBetaView() {
           }
           return;
         } catch (error) {
-          nativeDisabledRef.current = true;
-          disposeNativeEngine();
-          if (!nativeFailureLoggedRef.current) {
-            nativeFailureLoggedRef.current = true;
-            Elog("Native Cumquat failed; switching to JS fallback:", error);
-          }
+          disableNative(error);
         }
       }
 
       setProjectedPOIs(
-        projectWithJavaScript(snapshot, fov, minDistance, maxDistance),
+        projectWithJavaScript(snapshot, gestureStateRef.current),
       );
       setEngineMode("js-fallback");
     },
-    [disposeNativeEngine, ensureNativeEngine, fov, maxDistance, minDistance],
+    [disableNative, ensureNativeEngine],
   );
 
-  const applyGestureState = useCallback((state: GestureState) => {
-    setMinDistance(state.minDistance);
-    setMaxDistance(state.maxDistance);
-    setFOV(state.fov);
-  }, []);
+  const applyGestureState = useCallback(
+    (state: GestureState) => {
+      setMinDistance(state.minDistance);
+      setMaxDistance(state.maxDistance);
+      setFOV(state.fov);
+      commitNativeViewState(state);
+    },
+    [commitNativeViewState],
+  );
 
   const handleGestureUpdate = useCallback(
     (update: GestureUpdate) => {
@@ -566,7 +514,7 @@ export default function ARBetaView() {
             fontWeight="bold"
           >
             POIs: {projectedPOIs.filter((poi) => poi.isVisible).length} visible /{" "}
-            {projectedPOIs.length} total · {engineMode === "native" ? "C++" : engineMode}
+            {projectedPOIs.length} active · {engineMode === "native" ? "C++" : engineMode}
           </SvgText>
 
           {projectedPOIs.map((poi) => {
@@ -715,14 +663,14 @@ export default function ARBetaView() {
             style={styles.controlButton}
             onPress={() => {
               const resetState = setGestureState(DEFAULT_GESTURE_STATE);
-              applyGestureState(resetState);
-              setIsRubberBanding(false);
-              setActiveLimit(null);
-              setRubberBandIntensity(0);
               nativeDisabledRef.current = false;
               nativeFailureLoggedRef.current = false;
               disposeNativeEngine();
               setEngineMode("starting");
+              applyGestureState(resetState);
+              setIsRubberBanding(false);
+              setActiveLimit(null);
+              setRubberBandIntensity(0);
             }}
           >
             <Text style={styles.controlButtonText}>↺</Text>
