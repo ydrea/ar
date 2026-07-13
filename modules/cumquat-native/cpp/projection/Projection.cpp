@@ -7,7 +7,7 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kDebugViewportMarginPixels = 200.0;
 
-double radians(double degrees) { return degrees * kPi / 180.0; }
+inline double radians(double degrees) { return degrees * kPi / 180.0; }
 
 Vec3 rotateByQuaternion(const Vec3& vector, const Quaternion& source) {
   const double norm = std::sqrt(
@@ -31,7 +31,7 @@ Vec3 rotateByQuaternion(const Vec3& vector, const Quaternion& source) {
       vector.z + qw * tz + (qx * ty - qy * tx),
   };
 }
-}
+} // namespace
 
 Vec3 worldToCamera(const Vec3& enu, const SensorState& sensorState) {
   if (sensorState.hasOrientationQuaternion) {
@@ -71,7 +71,7 @@ Vec3 worldToCamera(const Vec3& enu, const SensorState& sensorState) {
 bool projectToScreen(
     const Vec3& camera,
     const SensorState& sensorState,
-    const EngineConfig& config,
+    const ViewState& viewState,
     double& x,
     double& y,
     double& depth) {
@@ -83,13 +83,12 @@ bool projectToScreen(
     // JS compatibility mode: radial depth, -Z forward test, axis swap, separate
     // vertical FOV calculation, and the existing 200px offscreen margin.
     depth = camera.length();
-    if (depth < config.nearMeters || depth > config.farMeters) return false;
-    if (camera.z > 0.0) return false;
+    if (depth <= 0.1 || camera.z > 0.0) return false;
 
     const double horizontalFocal =
-        width / (2.0 * std::tan(radians(config.horizontalFovDeg) * 0.5));
+        width / (2.0 * std::tan(radians(viewState.horizontalFovDeg) * 0.5));
     const double aspect = width / height;
-    const double verticalFovDeg = config.horizontalFovDeg / aspect;
+    const double verticalFovDeg = viewState.horizontalFovDeg / aspect;
     const double verticalFocal =
         height / (2.0 * std::tan(radians(verticalFovDeg) * 0.5));
 
@@ -105,10 +104,10 @@ bool projectToScreen(
   }
 
   depth = camera.y;
-  if (depth <= config.nearMeters || depth >= config.farMeters) return false;
+  if (depth <= 0.1) return false;
 
   const double focal =
-      width / (2.0 * std::tan(radians(config.horizontalFovDeg) * 0.5));
+      width / (2.0 * std::tan(radians(viewState.horizontalFovDeg) * 0.5));
   x = width * 0.5 + camera.x * focal / depth;
   y = height * 0.5 - camera.z * focal / depth;
   return x >= 0.0 && x <= width && y >= 0.0 && y <= height;
