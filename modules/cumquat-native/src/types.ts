@@ -19,10 +19,14 @@ export type POIInput = GeoPoint & {
 };
 
 export type EngineConfig = {
-  horizontalFovDegrees?: number;
-  nearMeters?: number;
-  farMeters?: number;
+  datasetRadiusMeters?: number;
   maxVisiblePOIs?: number;
+};
+
+export type ViewState = {
+  horizontalFovDegrees: number;
+  minDistanceMeters: number;
+  maxDistanceMeters: number;
 };
 
 export type SensorState = {
