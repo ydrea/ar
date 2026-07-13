@@ -15,5 +15,6 @@ export type {
   ProjectedPOI,
   Quaternion,
   SensorState,
+  ViewState,
   VisiblePOI,
 } from './types';
