@@ -6,6 +6,7 @@ import type {
   PickResult,
   POIInput,
   SensorState,
+  ViewState,
 } from './types';
 
 export class CumquatEngine {
@@ -27,6 +28,11 @@ export class CumquatEngine {
   initialize(pois: readonly POIInput[]): void {
     this.#assertAlive();
     NativeCumquat.initialize(this.#handle, pois);
+  }
+
+  setViewState(viewState: ViewState): void {
+    this.#assertAlive();
+    NativeCumquat.setViewState(this.#handle, viewState);
   }
 
   update(sensorState: SensorState): number {
