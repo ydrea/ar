@@ -33,6 +33,7 @@ const mockProjectedPOIs = Array.from({length: 36}, (_, poiIndex) => ({
 
 const mockNativeEngine = {
   initialize: jest.fn(),
+  setViewState: jest.fn(),
   update: jest.fn(() => 1),
   getFrame: jest.fn(() => ({
     sequence: 1,
@@ -192,12 +193,20 @@ describe("beta ARView", () => {
     });
   });
 
-  test("renders frames from the native engine", async () => {
+  test("creates one native engine with a hard dataset radius", async () => {
     await render(<ARView />);
 
     await waitFor(() => {
-      expect(mockNativeEngineFactory.create).toHaveBeenCalled();
+      expect(mockNativeEngineFactory.create).toHaveBeenCalledWith({
+        datasetRadiusMeters: 135_000,
+        maxVisiblePOIs: 36,
+      });
       expect(mockNativeEngine.initialize).toHaveBeenCalledTimes(1);
+      expect(mockNativeEngine.setViewState).toHaveBeenCalledWith({
+        horizontalFovDegrees: 120,
+        minDistanceMeters: 0,
+        maxDistanceMeters: 13_500,
+      });
       expect(mockNativeEngine.update).toHaveBeenCalled();
       expect(mockNativeEngine.getFrame).toHaveBeenCalled();
     });
@@ -234,8 +243,11 @@ describe("beta ARView", () => {
     });
   });
 
-  test("gesture updates drive HUD state and rubber-band feedback", async () => {
+  test("gesture updates mutate native view state without recreating the engine", async () => {
     await render(<ARView />);
+    await waitFor(() => {
+      expect(mockNativeEngineFactory.create).toHaveBeenCalledTimes(1);
+    });
     const options = mockUseARGestureController.mock.calls.at(-1)[0];
 
     await act(() => {
@@ -255,6 +267,14 @@ describe("beta ARView", () => {
     expect(screen.getByText("0.5km")).toBeTruthy();
     expect(screen.getByText("25.0km")).toBeTruthy();
     expect(screen.getByText("75°")).toBeTruthy();
+    expect(mockNativeEngine.setViewState).toHaveBeenLastCalledWith({
+      horizontalFovDegrees: 75,
+      minDistanceMeters: 500,
+      maxDistanceMeters: 25_000,
+    });
+    expect(mockNativeEngineFactory.create).toHaveBeenCalledTimes(1);
+    expect(mockNativeEngine.initialize).toHaveBeenCalledTimes(1);
+    expect(mockNativeEngine.dispose).not.toHaveBeenCalled();
     expect(mockRubberBandVisualFeedback.mock.calls.at(-1)[0]).toEqual({
       isActive: true,
       intensity: 1,
