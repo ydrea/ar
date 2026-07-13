@@ -26,10 +26,18 @@ struct POI {
 };
 
 struct EngineConfig {
-  double horizontalFovDeg{90.0};
-  double nearMeters{0.5};
-  double farMeters{135000.0};
+  // Immutable hard spatial-query radius. POIs outside this radius never enter
+  // a frame and therefore never cross the JSI boundary.
+  double datasetRadiusMeters{135000.0};
   std::uint32_t maxVisiblePOIs{256};
+};
+
+struct ViewState {
+  // Mutable AR presentation state owned by the native engine and updated by
+  // gesture output without recreating or reinitializing the engine.
+  double horizontalFovDeg{90.0};
+  double minDistanceMeters{0.0};
+  double maxDistanceMeters{135000.0};
 };
 
 struct SensorState {
@@ -71,9 +79,9 @@ struct FrameSnapshot {
   std::uint64_t sequence{0};
   std::int64_t timestampNs{0};
 
-  // Stable POI-index order. Includes visible, offscreen, behind-camera, and
-  // distance-clipped entries so the UI can render labels and edge indicators
-  // without running a second projection implementation in JavaScript.
+  // Stable POI-index order for the active hard-radius subset. Includes visible,
+  // offscreen, behind-camera, and gesture-distance-clipped entries so the UI
+  // can render labels and edge indicators without running a second projection.
   std::vector<VisiblePOI> projectedPOIs;
 
   // Visible-only, depth-sorted view retained for picking and compatibility.
