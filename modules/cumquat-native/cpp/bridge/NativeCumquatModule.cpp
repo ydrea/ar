@@ -69,6 +69,46 @@ void validateFinite(
   }
 }
 
+cumquat::ViewState readViewState(
+    jsi::Runtime& runtime,
+    const jsi::Object& object,
+    const cumquat::ViewState& fallback = {}) {
+  cumquat::ViewState viewState{
+      numberOr(
+          runtime,
+          object,
+          "horizontalFovDegrees",
+          fallback.horizontalFovDeg),
+      numberOr(
+          runtime,
+          object,
+          "minDistanceMeters",
+          fallback.minDistanceMeters),
+      numberOr(
+          runtime,
+          object,
+          "maxDistanceMeters",
+          fallback.maxDistanceMeters),
+  };
+
+  validateFinite(runtime, viewState.horizontalFovDeg, "horizontalFovDegrees");
+  validateFinite(runtime, viewState.minDistanceMeters, "minDistanceMeters");
+  validateFinite(runtime, viewState.maxDistanceMeters, "maxDistanceMeters");
+
+  if (viewState.horizontalFovDeg <= 1.0 ||
+      viewState.horizontalFovDeg >= 179.0) {
+    throw jsi::JSError(
+        runtime,
+        "NativeCumquat horizontalFovDegrees must be between 1 and 179");
+  }
+  if (viewState.minDistanceMeters < 0.0 ||
+      viewState.maxDistanceMeters <= viewState.minDistanceMeters) {
+    throw jsi::JSError(runtime, "NativeCumquat invalid view-state distance range");
+  }
+
+  return viewState;
+}
+
 jsi::Object serializeProjectedPOI(
     jsi::Runtime& runtime,
     const cumquat::VisiblePOI& source) {
@@ -111,22 +151,23 @@ NativeCumquatModule::NativeCumquatModule(
     : NativeCumquatCxxSpec(std::move(jsInvoker)) {}
 
 std::string NativeCumquatModule::getVersion(jsi::Runtime&) {
-  return "0.2.0-cpp";
+  return "0.3.0-cpp";
 }
 
 double NativeCumquatModule::createEngine(
     jsi::Runtime& runtime,
     jsi::Object configObject) {
   cumquat::EngineConfig config;
-  config.horizontalFovDeg = numberOr(
+
+  // farMeters is retained as a legacy fallback for callers compiled against
+  // the pre-ViewState API. New callers should use datasetRadiusMeters.
+  const double legacyFarMeters =
+      numberOr(runtime, configObject, "farMeters", config.datasetRadiusMeters);
+  config.datasetRadiusMeters = numberOr(
       runtime,
       configObject,
-      "horizontalFovDegrees",
-      config.horizontalFovDeg);
-  config.nearMeters =
-      numberOr(runtime, configObject, "nearMeters", config.nearMeters);
-  config.farMeters =
-      numberOr(runtime, configObject, "farMeters", config.farMeters);
+      "datasetRadiusMeters",
+      legacyFarMeters);
 
   const auto maxVisible = numberOr(
       runtime,
@@ -134,20 +175,35 @@ double NativeCumquatModule::createEngine(
       "maxVisiblePOIs",
       static_cast<double>(config.maxVisiblePOIs));
 
-  validateFinite(runtime, config.horizontalFovDeg, "horizontalFovDegrees");
-  validateFinite(runtime, config.nearMeters, "nearMeters");
-  validateFinite(runtime, config.farMeters, "farMeters");
+  validateFinite(runtime, config.datasetRadiusMeters, "datasetRadiusMeters");
   validateFinite(runtime, maxVisible, "maxVisiblePOIs");
 
-  config.horizontalFovDeg = std::clamp(config.horizontalFovDeg, 1.0, 179.0);
-  config.nearMeters = std::max(0.001, config.nearMeters);
-  config.farMeters = std::max(config.nearMeters + 0.001, config.farMeters);
+  if (config.datasetRadiusMeters <= 0.0) {
+    throw jsi::JSError(runtime, "NativeCumquat datasetRadiusMeters must be positive");
+  }
+
   config.maxVisiblePOIs = static_cast<std::uint32_t>(std::clamp(
       maxVisible,
       1.0,
       static_cast<double>(std::numeric_limits<std::uint32_t>::max())));
 
   auto engine = std::make_shared<cumquat::Engine>(config);
+
+  // Preserve legacy createEngine({horizontalFovDegrees, nearMeters, farMeters})
+  // behavior until all callers have moved to setViewState().
+  cumquat::ViewState initialViewState;
+  initialViewState.horizontalFovDeg = numberOr(
+      runtime,
+      configObject,
+      "horizontalFovDegrees",
+      initialViewState.horizontalFovDeg);
+  initialViewState.minDistanceMeters = numberOr(
+      runtime,
+      configObject,
+      "nearMeters",
+      initialViewState.minDistanceMeters);
+  initialViewState.maxDistanceMeters = legacyFarMeters;
+  engine->setViewState(initialViewState);
 
   std::lock_guard lock(mutex_);
   const auto handle = nextHandle_++;
@@ -188,6 +244,15 @@ void NativeCumquatModule::initialize(
   }
 
   engine->initialize(std::move(pois));
+}
+
+void NativeCumquatModule::setViewState(
+    jsi::Runtime& runtime,
+    double handle,
+    jsi::Object viewStateObject) {
+  auto engine = requireEngine(runtime, handle);
+  engine->setViewState(
+      readViewState(runtime, viewStateObject, engine->getViewState()));
 }
 
 double NativeCumquatModule::update(
