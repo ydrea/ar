@@ -9,7 +9,7 @@ Vec3 worldToCamera(const Vec3& enu, const SensorState& sensorState);
 bool projectToScreen(
     const Vec3& camera,
     const SensorState& sensorState,
-    const EngineConfig& config,
+    const ViewState& viewState,
     double& x,
     double& y,
     double& depth);
