@@ -228,6 +228,43 @@ function mapNativePOI(nativePOI: NativeProjectedPOI): RenderPOI {
   };
 }
 
+// diagnostics
+const POSITION_COMMIT_THRESHOLD_PX = 1.5;
+const DISTANCE_COMMIT_THRESHOLD_METERS = 2;
+
+function shouldCommitNativeFrame(
+  previous: readonly NativeProjectedPOI[],
+  next: readonly NativeProjectedPOI[],
+): boolean {
+  if (previous.length !== next.length) return true;
+
+  for (let index = 0; index < next.length; index += 1) {
+    const before = previous[index];
+    const after = next[index];
+
+    if (
+      before.poiIndex !== after.poiIndex ||
+      before.visible !== after.visible ||
+      before.clipped !== after.clipped ||
+      before.clippedByDistance !== after.clippedByDistance
+    ) {
+      return true;
+    }
+
+    if (
+      Math.abs(before.x - after.x) >= POSITION_COMMIT_THRESHOLD_PX ||
+      Math.abs(before.y - after.y) >= POSITION_COMMIT_THRESHOLD_PX ||
+      Math.abs(before.distance - after.distance) >=
+        DISTANCE_COMMIT_THRESHOLD_METERS
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+//
+
 function projectWithJavaScript(
   snapshot: SensorSnapshot,
   state: GestureState,
@@ -305,6 +342,8 @@ export default function ARBetaLandscapeView() {
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const lastLocationRef = useRef<SensorSnapshot | null>(null);
   const frameCountRef = useRef(0);
+  // diagnostics
+  const lastCommittedNativeFrameRef = useRef<readonly NativeProjectedPOI[]>([]);
 
   const { cameraRef, animatedZoom, animatedProps, AnimatedCamera } =
     useCameraZoom({
@@ -336,6 +375,9 @@ export default function ARBetaLandscapeView() {
   }, []);
 
   const disposeNativeEngine = useCallback(() => {
+    // nativeEngineRef.current?.dispose();
+    // nativeEngineRef.current = null;
+    lastCommittedNativeFrameRef.current = [];
     nativeEngineRef.current?.dispose();
     nativeEngineRef.current = null;
   }, []);
@@ -378,6 +420,10 @@ export default function ARBetaLandscapeView() {
     (state: GestureState) => {
       gestureStateRef.current = state;
       const engine = nativeEngineRef.current;
+
+      lastCommittedNativeFrameRef.current = [];
+      engine?.setViewState(toNativeViewState(state));
+
       if (!engine || nativeDisabledRef.current) return;
 
       try {
@@ -413,22 +459,45 @@ export default function ARBetaLandscapeView() {
             viewportHeight: currentViewport.height,
           });
 
-          const nextPOIs = engine.getFrame().projectedPOIs.map(mapNativePOI);
-          setProjectedPOIs(nextPOIs);
-          setEngineMode("native");
+          // fix
+          const nativeFrame = engine.getFrame().projectedPOIs;
 
-          frameCountRef.current += 1;
-          if (frameCountRef.current % 10 === 1) {
-            const visible = nextPOIs.filter((poi) => poi.isVisible);
-            Rlog(
-              `⚙️ Native frame: ${visible.length} visible / ${nextPOIs.length} active`,
-            );
-            visible.slice(0, 6).forEach((poi) => {
-              Rlog(
-                `📍 ${poi.name}: screen (${poi.screenPos.x.toFixed(0)}, ${poi.screenPos.y.toFixed(0)})`,
+          if (
+            shouldCommitNativeFrame(
+              lastCommittedNativeFrameRef.current,
+              nativeFrame,
+            )
+          ) {
+            lastCommittedNativeFrameRef.current = nativeFrame;
+
+            const nextPOIs = nativeFrame.map(mapNativePOI);
+            setProjectedPOIs(nextPOIs);
+
+            frameCountRef.current += 1;
+
+            if (frameCountRef.current % 10 === 1) {
+              const visible = nextPOIs.filter((poi) => poi.isVisible);
+
+              Dlog(
+                `⚙️ Native frame committed: ${visible.length} visible / ${nextPOIs.length} active`,
               );
-            });
+            }
           }
+
+          setEngineMode("native");
+          // //
+          // frameCountRef.current += 1;
+          // if (frameCountRef.current % 10 === 1) {
+          //   const visible = nextPOIs.filter((poi) => poi.isVisible);
+          //   Tlog(
+          //     `⚙️ Native frame: ${visible.length} visible / ${nextPOIs.length} active`,
+          //   );
+          //   visible.slice(0, 6).forEach((poi) => {
+          //     Rlog(
+          //       `📍 ${poi.name}: screen (${poi.screenPos.x.toFixed(0)}, ${poi.screenPos.y.toFixed(0)})`,
+          //     );
+          //   });
+          // }
           return;
         } catch (error) {
           disableNative(error);
