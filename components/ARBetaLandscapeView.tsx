@@ -42,7 +42,7 @@ import type {
   ViewState as NativeViewState,
 } from "@/modules/cumquat-native/src/types";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
-import { Dlog, Elog, Rlog, Tlog } from "@/utils/tlog";
+import { Dlog, Elog, Plog, Rlog, Tlog } from "@/utils/tlog";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 
@@ -419,11 +419,9 @@ export default function ARBetaLandscapeView() {
   const commitNativeViewState = useCallback(
     (state: GestureState) => {
       gestureStateRef.current = state;
-      const engine = nativeEngineRef.current;
-
       lastCommittedNativeFrameRef.current = [];
-      engine?.setViewState(toNativeViewState(state));
 
+      const engine = nativeEngineRef.current;
       if (!engine || nativeDisabledRef.current) return;
 
       try {
@@ -435,6 +433,7 @@ export default function ARBetaLandscapeView() {
     [disableNative],
   );
 
+  //
   const renderSnapshot = useCallback(
     (snapshot: SensorSnapshot) => {
       const currentViewport = viewportRef.current;
@@ -468,6 +467,7 @@ export default function ARBetaLandscapeView() {
               nativeFrame,
             )
           ) {
+            // fix2
             lastCommittedNativeFrameRef.current = nativeFrame;
 
             const nextPOIs = nativeFrame.map(mapNativePOI);
@@ -478,7 +478,7 @@ export default function ARBetaLandscapeView() {
             if (frameCountRef.current % 10 === 1) {
               const visible = nextPOIs.filter((poi) => poi.isVisible);
 
-              Dlog(
+              Plog(
                 `⚙️ Native frame committed: ${visible.length} visible / ${nextPOIs.length} active`,
               );
             }
