@@ -1,5 +1,10 @@
 import "react-native-gesture-handler/jestSetup";
 
+jest.mock("@/data/pois.json.bin", () => ({
+  __esModule: true,
+  default: 1,
+}));
+
 jest.mock("react-native-reanimated", () => {
   const React = require("react");
 

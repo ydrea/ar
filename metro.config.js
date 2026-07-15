@@ -15,4 +15,13 @@ config.resolver = {
   sourceExts: [...config.resolver.sourceExts, "mjs", "cjs"],
 };
 
+// Ensure resolver handles all data file types
+if (!config.resolver.assetExts.includes("bin")) {
+  config.resolver.assetExts.push("bin");
+}
+
+if (!config.resolver.assetExts.includes("json")) {
+  config.resolver.assetExts.push("json");
+}
+
 module.exports = config;
