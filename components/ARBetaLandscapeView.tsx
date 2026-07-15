@@ -46,6 +46,8 @@ import { Dlog, Elog, Plog, Rlog, Tlog } from "@/utils/tlog";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 
+const LABEL_WIDTH = 160;
+
 type Viewport = {
   width: number;
   height: number;
@@ -657,7 +659,35 @@ export default function ARBetaLandscapeView() {
               return (
                 <React.Fragment key={poi.id}>
                   <Circle cx={x} cy={y} r={10} fill="rgba(255, 0, 0, 0.8)" />
-                  <SvgText
+
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.poiLabel,
+                      {
+                        transform: [
+                          { translateX: x - LABEL_WIDTH / 2 },
+                          { translateY: y - 32 },
+                        ],
+                        opacity,
+                      },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.poiName, { fontSize }]}
+                    >
+                      {poi.name}
+                    </Text>
+
+                    <Text style={styles.poiDistance}>
+                      {poi.distance < 1000
+                        ? `${Math.round(poi.distance)}m`
+                        : `${(poi.distance / 1000).toFixed(1)}km`}
+                    </Text>
+                  </View>
+
+                  {/* <SvgText
                     x={x}
                     y={y - 15}
                     fill={`rgba(255, 255, 255, ${opacity})`}
@@ -681,7 +711,7 @@ export default function ARBetaLandscapeView() {
                     {poi.distance < 1000
                       ? `${Math.round(poi.distance)}m`
                       : `${(poi.distance / 1000).toFixed(1)}km`}
-                  </SvgText>
+                  </SvgText> */}
                 </React.Fragment>
               );
             }
@@ -802,6 +832,33 @@ export default function ARBetaLandscapeView() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+
+  // const styles = StyleSheet.create({
+  poiLabel: {
+    position: "absolute",
+    width: LABEL_WIDTH,
+    alignItems: "center",
+  },
+
+  poiName: {
+    color: "white",
+    fontWeight: "700",
+    textAlign: "center",
+
+    // Cheaper replacement for thick SVG stroke.
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  poiDistance: {
+    color: "rgba(210,210,255,0.85)",
+    fontSize: 10,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+
   reticle: {
     position: "absolute",
     top: "50%",
