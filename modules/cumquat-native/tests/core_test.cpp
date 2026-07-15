@@ -1,4 +1,5 @@
 #include "core/Engine.h"
+#include "projection/Projection.h"
 
 #include <cassert>
 #include <cmath>
@@ -95,6 +96,24 @@ int main() {
   assert(quaternionFrame.visiblePOIs.size() == 1);
   assert(quaternionFrame.visiblePOIs[0].poiIndex == 0);
   assert(near(quaternionFrame.visiblePOIs[0].x, 0.0, 3.0));
+
+  // Behind-camera POIs still produce finite screen-direction coordinates so
+  // the UI can place a stable edge indicator instead of falling back to (0, 0).
+  double behindX = 0.0;
+  double behindY = 0.0;
+  double behindDepth = 0.0;
+  const bool behindVisible = cumquat::projection::projectToScreen(
+      {10.0, 20.0, 100.0},
+      state,
+      engine.getViewState(),
+      behindX,
+      behindY,
+      behindDepth);
+  assert(!behindVisible);
+  assert(std::isfinite(behindX));
+  assert(std::isfinite(behindY));
+  assert(behindX != 0.0 || behindY != 0.0);
+  assert(!near(behindX, 500.0, 0.001) || !near(behindY, 250.0, 0.001));
 
   std::cout << "cumquat_core_tests passed\n";
   return 0;
