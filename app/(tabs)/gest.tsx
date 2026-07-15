@@ -1,1 +1,1 @@
-export {default} from "@/components/ARBetaLandscapeView";
+export {default} from "@/components/ARBetaNativeOverlayView";
