@@ -1,5 +1,6 @@
 #include "Projection.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace cumquat::projection {
@@ -82,8 +83,16 @@ bool projectToScreen(
   if (sensorState.hasOrientationQuaternion) {
     // JS compatibility mode: radial depth, -Z forward test, axis swap, separate
     // vertical FOV calculation, and the existing 200px offscreen margin.
+    //
+    // Screen-direction coordinates are calculated even for points behind the
+    // camera. The caller can therefore place a stable edge indicator while the
+    // boolean result still correctly reports that the POI is not visible.
     depth = camera.length();
-    if (depth <= 0.1 || camera.z > 0.0) return false;
+    if (depth <= 0.1) {
+      x = width * 0.5;
+      y = height * 0.5;
+      return false;
+    }
 
     const double horizontalFocal =
         width / (2.0 * std::tan(radians(viewState.horizontalFovDeg) * 0.5));
@@ -97,17 +106,25 @@ bool projectToScreen(
     x = width * 0.5 + correctedX * horizontalFocal / depth;
     y = height * 0.5 - correctedY * verticalFocal / depth;
 
+    if (camera.z > 0.0) return false;
+
     return x >= -kDebugViewportMarginPixels &&
         x <= width + kDebugViewportMarginPixels &&
         y >= -kDebugViewportMarginPixels &&
         y <= height + kDebugViewportMarginPixels;
   }
 
-  depth = camera.y;
-  if (depth <= 0.1) return false;
-
   const double focal =
       width / (2.0 * std::tan(radians(viewState.horizontalFovDeg) * 0.5));
+  depth = camera.y;
+
+  if (depth <= 0.1) {
+    const double directionDepth = std::max(camera.length(), 0.1);
+    x = width * 0.5 + camera.x * focal / directionDepth;
+    y = height * 0.5 - camera.z * focal / directionDepth;
+    return false;
+  }
+
   x = width * 0.5 + camera.x * focal / depth;
   y = height * 0.5 - camera.z * focal / depth;
   return x >= 0.0 && x <= width && y >= 0.0 && y <= height;
