@@ -16,7 +16,6 @@
     "jest.config.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "app.config.js",
     "data/types/**/*.d.ts",
     "data/binaryDataLoader.ts"
   ]
