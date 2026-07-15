@@ -480,7 +480,7 @@ export default function ARBetaLandscapeView() {
             if (frameCountRef.current % 10 === 1) {
               const visible = nextPOIs.filter((poi) => poi.isVisible);
 
-              Plog(
+              Tlog(
                 `⚙️ Native frame committed: ${visible.length} visible / ${nextPOIs.length} active`,
               );
             }
