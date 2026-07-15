@@ -193,7 +193,7 @@ describe("beta ARView", () => {
   });
 
   test("renders the animated camera and starts SensorHub", async () => {
-    render(<ARView />);
+    await render(<ARView />);
 
     expect(screen.getByTestId("animated-camera")).toBeTruthy();
 
@@ -205,7 +205,7 @@ describe("beta ARView", () => {
   });
 
   test("creates one native engine with a hard dataset radius", async () => {
-    render(<ARView />);
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalledWith({
@@ -226,7 +226,7 @@ describe("beta ARView", () => {
   test("initializes the native engine with a large island dataset", async () => {
     mockLoadPOIsFromAsset.mockResolvedValueOnce(createMockPOIs(1118));
 
-    render(<ARView />);
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalledWith({
@@ -249,8 +249,8 @@ describe("beta ARView", () => {
     });
   });
 
-  test("configures the new gesture hook with default state and camera zoom", () => {
-    render(<ARView />);
+  test("configures the new gesture hook with default state and camera zoom", async () => {
+    await render(<ARView />);
 
     expect(mockUseARGestureController).toHaveBeenCalled();
 
@@ -268,7 +268,7 @@ describe("beta ARView", () => {
   });
 
   test("passes inactive defaults to RubberBandVisualFeedback", async () => {
-    render(<ARView />);
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockRubberBandVisualFeedback).toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe("beta ARView", () => {
   });
 
   test("gesture updates mutate native view state without recreating the engine", async () => {
-    render(<ARView />);
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalledTimes(1);
@@ -323,7 +323,7 @@ describe("beta ARView", () => {
   });
 
   test("reset sends the default state through the gesture controller", async () => {
-    render(<ARView />);
+    await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalled();
