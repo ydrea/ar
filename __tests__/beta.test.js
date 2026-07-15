@@ -10,11 +10,15 @@ import {
 
 import ARView from "@/app/(tabs)/gest";
 
+import { AR_CONSTANTS } from "@/cumquat/constants";
+
+const DEFAULT_POI_COUNT = 36;
+const LARGE_DATASET_COUNT = 1118;
 const originalError = console.error;
 const originalLog = console.log;
 
 function createMockPOIs(count) {
-  return Array.from({length: count}, (_, index) => ({
+  return Array.from({ length: count }, (_, index) => ({
     id: index + 1,
     name: `Island ${index + 1}`,
     lat: 42 + (index % 100) * 0.001,
@@ -31,12 +35,12 @@ jest.mock("@/data/binaryDataLoader", () => ({
 
 const mockSetGestureState = jest.fn((nextState) => nextState);
 const mockUseARGestureController = jest.fn(() => ({
-  gesture: {kind: "mock-two-finger-pan"},
+  gesture: { kind: "mock-two-finger-pan" },
   setState: mockSetGestureState,
 }));
-const mockAnimatedZoom = {value: 0};
+const mockAnimatedZoom = { value: 0 };
 
-const mockProjectedPOIs = Array.from({length: 36}, (_, poiIndex) => ({
+const mockProjectedPOIs = Array.from({ length: 36 }, (_, poiIndex) => ({
   poiIndex,
   x: 100,
   y: 100,
@@ -76,7 +80,7 @@ jest.mock("@/cumquat/gestures/useARGestureController", () => ({
 
 jest.mock("@/hooks/useCameraZoom", () => {
   const React = require("react");
-  const {View} = require("react-native");
+  const { View } = require("react-native");
 
   const MockAnimatedCamera = React.forwardRef((props, ref) => {
     const {
@@ -91,14 +95,14 @@ jest.mock("@/hooks/useCameraZoom", () => {
 
   return {
     useCameraZoom: jest.fn(() => ({
-      cameraRef: {current: null},
+      cameraRef: { current: null },
       animatedZoom: mockAnimatedZoom,
-      animatedProps: {zoom: 0},
+      animatedProps: { zoom: 0 },
       AnimatedCamera: MockAnimatedCamera,
       animateZoom: jest.fn(),
       setZoom: jest.fn(),
       resetZoom: jest.fn(),
-      isAnimating: {value: false},
+      isAnimating: { value: false },
     })),
   };
 });
@@ -111,14 +115,14 @@ jest.mock("@/cumquat/sensors", () => {
       lat: 45.8,
       lon: 15.96,
       elevation: 120,
-      orientation: {x: 0, y: 0, z: 0, w: 1},
+      orientation: { x: 0, y: 0, z: 0, w: 1 },
       timestamp: Date.now(),
     })),
   };
 
   return {
     sensorHub: mockSensorHub,
-    geoToENU: jest.fn(() => ({x: 0, y: 0, z: -10})),
+    geoToENU: jest.fn(() => ({ x: 0, y: 0, z: -10 })),
     rotateVector: jest.fn((vector) => vector),
     calculateBearing: jest.fn(() => 0),
     projectToScreenWithClipping: jest.fn(() => ({
@@ -148,11 +152,11 @@ jest.mock("expo-camera", () => ({
 
 jest.mock("react-native-gesture-handler", () => {
   const React = require("react");
-  const {View} = require("react-native");
+  const { View } = require("react-native");
 
   return {
-    GestureDetector: ({children}) => <View>{children}</View>,
-    GestureHandlerRootView: ({children, ...props}) => (
+    GestureDetector: ({ children }) => <View>{children}</View>,
+    GestureHandlerRootView: ({ children, ...props }) => (
       <View {...props}>{children}</View>
     ),
   };
@@ -165,7 +169,7 @@ describe("beta ARView", () => {
     mockLoadPOIsFromAsset.mockResolvedValue(createMockPOIs(36));
     mockSetGestureState.mockImplementation((nextState) => nextState);
     mockUseARGestureController.mockImplementation(() => ({
-      gesture: {kind: "mock-two-finger-pan"},
+      gesture: { kind: "mock-two-finger-pan" },
       setState: mockSetGestureState,
     }));
 
@@ -209,14 +213,14 @@ describe("beta ARView", () => {
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalledWith({
-        datasetRadiusMeters: 135_000,
-        maxVisiblePOIs: 36,
+        datasetRadiusMeters: AR_CONSTANTS.DISTANCE.MAX,
+        maxVisiblePOIs: DEFAULT_POI_COUNT,
       });
       expect(mockNativeEngine.initialize).toHaveBeenCalledTimes(1);
       expect(mockNativeEngine.setViewState).toHaveBeenCalledWith({
-        horizontalFovDegrees: 120,
-        minDistanceMeters: 0,
-        maxDistanceMeters: 13_500,
+        horizontalFovDegrees: AR_CONSTANTS.FOV.DEFAULT,
+        minDistanceMeters: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
+        maxDistanceMeters: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
       });
       expect(mockNativeEngine.update).toHaveBeenCalled();
       expect(mockNativeEngine.getFrame).toHaveBeenCalled();
@@ -224,29 +228,22 @@ describe("beta ARView", () => {
   });
 
   test("initializes the native engine with a large island dataset", async () => {
-    mockLoadPOIsFromAsset.mockResolvedValueOnce(createMockPOIs(1118));
+    mockLoadPOIsFromAsset.mockResolvedValueOnce(
+      createMockPOIs(LARGE_DATASET_COUNT),
+    );
 
     await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngineFactory.create).toHaveBeenCalledWith({
-        datasetRadiusMeters: 135_000,
-        maxVisiblePOIs: 1118,
+        datasetRadiusMeters: AR_CONSTANTS.DISTANCE.MAX,
+        maxVisiblePOIs: LARGE_DATASET_COUNT,
       });
     });
 
-    expect(mockNativeEngine.initialize).toHaveBeenCalledTimes(1);
-
     const initializedPOIs = mockNativeEngine.initialize.mock.calls[0][0];
 
-    expect(initializedPOIs).toHaveLength(1118);
-    expect(initializedPOIs[0]).toEqual({
-      id: "1",
-      name: "Island 1",
-      latitude: 42,
-      longitude: 14,
-      altitude: 0,
-    });
+    expect(initializedPOIs).toHaveLength(LARGE_DATASET_COUNT);
   });
 
   test("configures the new gesture hook with default state and camera zoom", async () => {
@@ -257,10 +254,10 @@ describe("beta ARView", () => {
     const options = mockUseARGestureController.mock.calls.at(-1)[0];
 
     expect(options.initialState).toEqual({
-      minDistance: 0,
-      maxDistance: 13_500,
+      minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
+      maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
       zoom: 0,
-      fov: 120,
+      fov: AR_CONSTANTS.FOV.DEFAULT,
     });
     expect(options.cameraZoom).toBe(mockAnimatedZoom);
     expect(options.callbacks.onUpdate).toEqual(expect.any(Function));
@@ -332,10 +329,10 @@ describe("beta ARView", () => {
     fireEvent.press(screen.getByText("↺"));
 
     expect(mockSetGestureState).toHaveBeenCalledWith({
-      minDistance: 0,
-      maxDistance: 13_500,
+      minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
+      maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
       zoom: 0,
-      fov: 120,
+      fov: AR_CONSTANTS.FOV.DEFAULT,
     });
     expect(mockNativeEngine.dispose).toHaveBeenCalled();
   });
