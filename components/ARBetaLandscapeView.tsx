@@ -658,8 +658,18 @@ export default function ARBetaLandscapeView() {
             if (poi.isVisible) {
               return (
                 <React.Fragment key={poi.id}>
-                  <Circle cx={x} cy={y} r={10} fill="rgba(255, 0, 0, 0.8)" />
-
+                  {/* <Circle cx={x} cy={y} r={10} fill="rgba(255, 0, 0, 0.8)" /> */}
+                  <View
+                    style={[
+                      styles.poiDot,
+                      {
+                        transform: [
+                          { translateX: x - 8 },
+                          { translateY: y - 8 },
+                        ],
+                      },
+                    ]}
+                  />
                   <View
                     pointerEvents="none"
                     style={[
@@ -833,7 +843,16 @@ export default function ARBetaLandscapeView() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
 
-  // const styles = StyleSheet.create({
+  poiDot: {
+    position: "absolute",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderColor: "white",
+    borderWidth: 1,
+    backgroundColor: "rgba(255,0,0,0.8)",
+  },
+
   poiLabel: {
     position: "absolute",
     width: LABEL_WIDTH,
