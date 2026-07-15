@@ -14,10 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GestureDetector } from "react-native-gesture-handler";
-import type { CameraType } from "expo-camera";
+import {GestureDetector} from "react-native-gesture-handler";
+import type {CameraType} from "expo-camera";
 
-import { AR_CONSTANTS } from "@/cumquat/constants";
+import {AR_CONSTANTS} from "@/cumquat/constants";
 import {
   calculateBearing,
   geoToENU,
@@ -25,14 +25,17 @@ import {
   rotateVector,
   sensorHub,
 } from "@/cumquat/sensors";
-import type { ScreenPosition, SensorSnapshot } from "@/cumquat/types";
-import { useARGestureController } from "@/cumquat/gestures/useARGestureController";
+import type {ScreenPosition, SensorSnapshot} from "@/cumquat/types";
+import {useARGestureController} from "@/cumquat/gestures/useARGestureController";
 import type {
   GestureState,
   GestureUpdate,
   LimitType,
 } from "@/cumquat/gestures/types";
-import { useCameraZoom } from "@/hooks/useCameraZoom";
+import type {BinaryPOI} from "@/data/binaryDataLoader";
+import {loadPOIsFromAsset} from "@/data/binaryDataLoader";
+import poiBinaryAsset from "@/data/pois.json.bin";
+import {useCameraZoom} from "@/hooks/useCameraZoom";
 import type {
   EngineConfig,
   FrameSnapshot,
@@ -41,12 +44,8 @@ import type {
   SensorState,
   ViewState as NativeViewState,
 } from "@/modules/cumquat-native/src/types";
-import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
-import { Dlog, Elog, Rlog, Tlog } from "@/utils/tlog";
-
-import type { BinaryIsland, BinaryPOI } from "@/data/binaryDataLoader";
-import { loadPOIsFromAsset } from "@/data/binaryDataLoader";
-import poiBinaryAsset from "@/data/pois.json.bin";
+import {RubberBandVisualFeedback} from "@/ui/RubberBandVisualFeedback";
+import {Dlog, Elog, Rlog, Tlog} from "@/utils/tlog";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 const POSITION_COMMIT_THRESHOLD_PX = 1.5;
@@ -99,149 +98,6 @@ type IndicatorPlacement = {
   color: string;
 };
 
-// const POIS: readonly SourcePOI[] = [
-//   { id: 1, name: "Tresnjevacki trg Market", lat: 45.8, lon: 15.9667, alt: 1 },
-//   { id: 2, name: "Cafic Eliscafe", lat: 45.7995, lon: 15.967, alt: 1 },
-//   { id: 3, name: "Pekara Mlinar", lat: 45.8005, lon: 15.966, alt: 1 },
-//   { id: 4, name: "Konoba Tresnjevka", lat: 45.799, lon: 15.9675, alt: 1 },
-//   { id: 5, name: "Park Maksimir", lat: 45.81, lon: 15.98, alt: 1 },
-//   { id: 6, name: "Trg Njegoševa", lat: 45.798, lon: 15.965, alt: 1 },
-//   { id: 7, name: "Konzum Superstore", lat: 45.801, lon: 15.968, alt: 1 },
-//   { id: 8, name: "Ljekarna Tresnjevka", lat: 45.7985, lon: 15.9645, alt: 1 },
-//   { id: 9, name: "Osnovna škola Tresnjevka", lat: 45.802, lon: 15.969, alt: 1 },
-//   { id: 10, name: "Crkva sv.Antuna", lat: 45.7975, lon: 15.963, alt: 1 },
-//   { id: 11, name: "Pivnica Medvedgrad", lat: 45.803, lon: 15.97, alt: 1 },
-//   { id: 12, name: "Bistrolana Tresnjevka", lat: 45.799, lon: 15.9685, alt: 1 },
-//   { id: 13, name: "Frizerski salon Ana", lat: 45.8, lon: 15.9655, alt: 1 },
-//   { id: 14, name: "Automehaničar Drop", lat: 45.797, lon: 15.967, alt: 1 },
-//   { id: 15, name: "Vrtuljak Park", lat: 45.8015, lon: 15.964, alt: 1 },
-//   { id: 16, name: "Trg Kvatrić", lat: 45.798, lon: 15.9695, alt: 1 },
-//   {
-//     id: 17,
-//     name: "Poslovni centar Tresnjevka",
-//     lat: 45.8015,
-//     lon: 15.9695,
-//     alt: 1,
-//   },
-//   { id: 18, name: "Knjižara Algoritam", lat: 45.798, lon: 15.9665, alt: 1 },
-//   { id: 19, name: "Pekara Kruh", lat: 45.8025, lon: 15.9675, alt: 1 },
-//   { id: 20, name: "Ljekarna Jambo", lat: 45.7975, lon: 15.968, alt: 1 },
-//   {
-//     id: 21,
-//     name: "Cibona",
-//     lat: 45.803249057020885,
-//     lon: 15.96347793271185,
-//     alt: 92,
-//   },
-//   {
-//     id: 22,
-//     name: "Zagrepčanka",
-//     lat: 45.798528643549396,
-//     lon: 15.96245585283698,
-//     alt: 95,
-//   },
-//   {
-//     id: 23,
-//     name: "Vjesnik",
-//     lat: 45.793551576662246,
-//     lon: 15.959205695046405,
-//     alt: 67,
-//   },
-//   {
-//     id: 24,
-//     name: "Jelenovac",
-//     lat: 45.82741901993836,
-//     lon: 15.956039702679561,
-//     alt: 135,
-//   },
-//   {
-//     id: 25,
-//     name: "Dom sportova",
-//     lat: 45.80736039531922,
-//     lon: 15.951976431579737,
-//     alt: 0,
-//   },
-//   {
-//     id: 26,
-//     name: "Sljeme",
-//     lat: 45.89946265300375,
-//     lon: 15.94482091926767,
-//     alt: 1033,
-//   },
-//   {
-//     id: 27,
-//     name: "Medvedgrad",
-//     lat: 45.89946265300375,
-//     lon: 15.94482091926767,
-//     alt: 579,
-//   },
-//   {
-//     id: 28,
-//     name: "Grmoščica",
-//     lat: 45.81692484023739,
-//     lon: 15.92419321766124,
-//     alt: 239,
-//   },
-//   {
-//     id: 29,
-//     name: "Trg Francuske Republike",
-//     lat: 45.81050656334719,
-//     lon: 15.95553638845962,
-//     alt: 0,
-//   },
-//   { id: 30, name: "Otok ljubavi", lat: 45.779416, lon: 15.93489, alt: 7 },
-//   { id: 31, name: "Otok veslača", lat: 45.778193, lon: 15.93373, alt: 10 },
-//   { id: 32, name: "Otok Trešnjevka", lat: 45.782458, lon: 15.918919, alt: 10 },
-//   {
-//     id: 33,
-//     name: "Otok Univerzijade",
-//     lat: 45.784486,
-//     lon: 15.914094,
-//     alt: 15,
-//   },
-//   {
-//     id: 34,
-//     name: "Otok hrvatske mladeži",
-//     lat: 45.778619,
-//     lon: 15.925837,
-//     alt: 14,
-//   },
-//   { id: 35, name: "Otok divljine", lat: 45.776107, lon: 15.927812, alt: 20 },
-//   { id: 999, name: "TEST", lat: 45.8005, lon: 15.9563, alt: 1 },
-// ];
-const [pois, setPOIs] = useState<readonly BinaryPOI[]>([]);
-const [poiLoadError, setPOILoadError] = useState<Error | null>(null);
-
-useEffect(() => {
-  let cancelled = false;
-
-  loadPOIsFromAsset(poiBinaryAsset)
-    .then((loadedPOIs) => {
-      if (!cancelled) {
-        setPOIs(loadedPOIs);
-      }
-    })
-    .catch((error: unknown) => {
-      if (cancelled) return;
-
-      setPOILoadError(
-        error instanceof Error ? error : new Error("Unable to load POI binary"),
-      );
-    });
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
-
-const NATIVE_POIS: readonly POIInput[] = pois.map((poi) => ({
-  id: String(poi.id),
-  name: poi.name,
-  latitude: poi.lat,
-  longitude: poi.lon,
-  altitude: poi.alt,
-}));
-
 const DEFAULT_GESTURE_STATE: GestureState = {
   minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
   maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
@@ -285,6 +141,7 @@ const normalizeAngle = (degrees: number): number =>
 
 function toNativeViewState(state: GestureState): NativeViewState {
   const minDistanceMeters = Math.max(0, state.minDistance);
+
   return {
     horizontalFovDegrees: state.fov,
     minDistanceMeters,
@@ -302,8 +159,12 @@ function getRubberBandIntensity(
   return Math.min(1, excess / 500);
 }
 
-function mapNativePOI(nativePOI: NativeProjectedPOI): RenderPOI {
+function mapNativePOI(
+  nativePOI: NativeProjectedPOI,
+  pois: readonly SourcePOI[],
+): RenderPOI {
   const source = pois[nativePOI.poiIndex];
+
   if (!source) {
     throw new Error(
       `NativeCumquat returned invalid POI index ${nativePOI.poiIndex}`,
@@ -326,8 +187,10 @@ function mapNativePOI(nativePOI: NativeProjectedPOI): RenderPOI {
     bearing: nativePOI.bearing,
     screenPos,
     isDistanceClipped: nativePOI.clippedByDistance !== null,
-    isOffscreen: nativePOI.clipped && nativePOI.clippedByDistance === null,
-    isVisible: nativePOI.visible && nativePOI.clippedByDistance === null,
+    isOffscreen:
+      nativePOI.clipped && nativePOI.clippedByDistance === null,
+    isVisible:
+      nativePOI.visible && nativePOI.clippedByDistance === null,
   };
 }
 
@@ -367,6 +230,7 @@ function projectWithJavaScript(
   snapshot: SensorSnapshot,
   state: GestureState,
   viewport: Viewport,
+  pois: readonly SourcePOI[],
 ): RenderPOI[] {
   return pois.flatMap((poi) => {
     const enuPosition = geoToENU(
@@ -409,8 +273,10 @@ function projectWithJavaScript(
         bearing,
         screenPos,
         isDistanceClipped: screenPos.clippedByDistance != null,
-        isOffscreen: screenPos.clipped && screenPos.clippedByDistance == null,
-        isVisible: screenPos.visible && screenPos.clippedByDistance == null,
+        isOffscreen:
+          screenPos.clipped && screenPos.clippedByDistance == null,
+        isVisible:
+          screenPos.visible && screenPos.clippedByDistance == null,
       },
     ];
   });
@@ -436,8 +302,12 @@ function getIndicatorPlacement(
 ): IndicatorPlacement {
   const centerX = viewport.width / 2;
   const centerY = viewport.height / 2;
-  const sourceX = Number.isFinite(poi.screenPos.x) ? poi.screenPos.x : centerX;
-  const sourceY = Number.isFinite(poi.screenPos.y) ? poi.screenPos.y : centerY;
+  const sourceX = Number.isFinite(poi.screenPos.x)
+    ? poi.screenPos.x
+    : centerX;
+  const sourceY = Number.isFinite(poi.screenPos.y)
+    ? poi.screenPos.y
+    : centerY;
 
   let dx = sourceX - centerX;
   let dy = sourceY - centerY;
@@ -477,9 +347,13 @@ function getIndicatorPlacement(
   const availableX = viewport.width / 2 - EDGE_MARGIN;
   const availableY = viewport.height / 2 - EDGE_MARGIN;
   const scaleX =
-    Math.abs(dx) > 0.001 ? availableX / Math.abs(dx) : Number.POSITIVE_INFINITY;
+    Math.abs(dx) > 0.001
+      ? availableX / Math.abs(dx)
+      : Number.POSITIVE_INFINITY;
   const scaleY =
-    Math.abs(dy) > 0.001 ? availableY / Math.abs(dy) : Number.POSITIVE_INFINITY;
+    Math.abs(dy) > 0.001
+      ? availableY / Math.abs(dy)
+      : Number.POSITIVE_INFINITY;
   const scale = Math.min(scaleX, scaleY);
 
   return {
@@ -495,7 +369,7 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
 }: {
   poi: RenderPOI;
 }) {
-  const { x, y } = poi.screenPos;
+  const {x, y} = poi.screenPos;
   const distanceRatio = Math.min(1, poi.distance / 2000);
   const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
   const fontSize = Math.max(10, 16 - distanceRatio * 6);
@@ -517,15 +391,17 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
       >
         {poi.name}
       </Text>
+
       <View
         pointerEvents="none"
-        style={[styles.poiDot, { left: x - 7, top: y - 7, opacity }]}
+        style={[styles.poiDot, {left: x - 7, top: y - 7, opacity}]}
       />
+
       <Text
         pointerEvents="none"
         style={[
           styles.poiDistance,
-          { left: x - LABEL_WIDTH / 2, top: y + 10, opacity },
+          {left: x - LABEL_WIDTH / 2, top: y + 10, opacity},
         ]}
       >
         {formatDistance(poi.distance)}
@@ -548,7 +424,7 @@ const EdgeTriangle = memo(function EdgeTriangle({
           left: placement.x - 8,
           top: placement.y - 8,
           borderLeftColor: placement.color,
-          transform: [{ rotate: `${placement.angle}rad` }],
+          transform: [{rotate: `${placement.angle}rad`}],
         },
       ]}
     />
@@ -556,6 +432,8 @@ const EdgeTriangle = memo(function EdgeTriangle({
 });
 
 export default function ARBetaNativeOverlayView() {
+  const [pois, setPOIs] = useState<readonly BinaryPOI[]>([]);
+  const [poiLoadError, setPOILoadError] = useState<Error | null>(null);
   const [cameraFacing] = useState<CameraType>("back");
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
   const [projectedPOIs, setProjectedPOIs] = useState<RenderPOI[]>([]);
@@ -578,10 +456,23 @@ export default function ARBetaNativeOverlayView() {
   const gestureStateRef = useRef<GestureState>(DEFAULT_GESTURE_STATE);
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const lastLocationRef = useRef<SensorSnapshot | null>(null);
-  const lastCommittedNativeFrameRef = useRef<readonly NativeProjectedPOI[]>([]);
+  const lastCommittedNativeFrameRef =
+    useRef<readonly NativeProjectedPOI[]>([]);
   const frameCountRef = useRef(0);
 
-  const { cameraRef, animatedZoom, animatedProps, AnimatedCamera } =
+  const nativePOIs = useMemo<readonly POIInput[]>(
+    () =>
+      pois.map((poi) => ({
+        id: String(poi.id),
+        name: poi.name,
+        latitude: poi.lat,
+        longitude: poi.lon,
+        altitude: poi.alt,
+      })),
+    [pois],
+  );
+
+  const {cameraRef, animatedZoom, animatedProps, AnimatedCamera} =
     useCameraZoom({
       initialZoom: DEFAULT_GESTURE_STATE.zoom,
       springConfig: {
@@ -621,6 +512,7 @@ export default function ARBetaNativeOverlayView() {
       nativeDisabledRef.current = true;
       disposeNativeEngine();
       setEngineMode("js-fallback");
+
       if (!nativeFailureLoggedRef.current) {
         nativeFailureLoggedRef.current = true;
         Elog("Native Cumquat failed; switching to JS fallback:", error);
@@ -632,27 +524,25 @@ export default function ARBetaNativeOverlayView() {
   const ensureNativeEngine = useCallback((): NativeEngine | null => {
     if (nativeDisabledRef.current) return null;
     if (nativeEngineRef.current) return nativeEngineRef.current;
-
-    if (pois.length === 0) {
-      throw new Error("POI binary has not loaded yet");
-    }
+    if (nativePOIs.length === 0) return null;
 
     const factory = getNativeFactory();
     if (!factory) return null;
 
     const engine = factory.create({
       datasetRadiusMeters: DATASET_RADIUS_METERS,
-      maxVisiblePOIs: pois.length,
+      maxVisiblePOIs: nativePOIs.length,
     });
-    engine.initialize(NATIVE_POIS);
+    engine.initialize(nativePOIs);
     engine.setViewState(toNativeViewState(gestureStateRef.current));
 
     nativeEngineRef.current = engine;
     Dlog(
-      `⚙️ Native Cumquat initialized: ${pois.length} POIs (${factory.getNativeVersion()})`,
+      `⚙️ Native Cumquat initialized: ${nativePOIs.length} POIs (${factory.getNativeVersion()})`,
     );
+
     return engine;
-  }, []);
+  }, [nativePOIs]);
 
   const commitNativeViewState = useCallback(
     (state: GestureState) => {
@@ -673,12 +563,16 @@ export default function ARBetaNativeOverlayView() {
 
   const renderSnapshot = useCallback(
     (snapshot: SensorSnapshot) => {
+      if (pois.length === 0) return;
+
       const currentViewport = viewportRef.current;
 
       if (!nativeDisabledRef.current) {
         try {
           const engine = ensureNativeEngine();
-          if (!engine) throw new Error("Native Cumquat engine unavailable");
+          if (!engine) {
+            throw new Error("Native Cumquat engine unavailable");
+          }
 
           engine.update({
             timestampNs: snapshot.timestamp * 1_000_000,
@@ -696,6 +590,7 @@ export default function ARBetaNativeOverlayView() {
           });
 
           const nativeFrame = engine.getFrame().projectedPOIs;
+
           if (
             shouldCommitNativeFrame(
               lastCommittedNativeFrameRef.current,
@@ -703,7 +598,10 @@ export default function ARBetaNativeOverlayView() {
             )
           ) {
             lastCommittedNativeFrameRef.current = nativeFrame;
-            const nextPOIs = nativeFrame.map(mapNativePOI);
+
+            const nextPOIs = nativeFrame.map((nativePOI) =>
+              mapNativePOI(nativePOI, pois),
+            );
             setProjectedPOIs(nextPOIs);
 
             frameCountRef.current += 1;
@@ -727,11 +625,12 @@ export default function ARBetaNativeOverlayView() {
           snapshot,
           gestureStateRef.current,
           currentViewport,
+          pois,
         ),
       );
       setEngineMode("js-fallback");
     },
-    [disableNative, ensureNativeEngine],
+    [disableNative, ensureNativeEngine, pois],
   );
 
   const applyGestureState = useCallback(
@@ -767,11 +666,11 @@ export default function ARBetaNativeOverlayView() {
   );
 
   const gestureCallbacks = useMemo(
-    () => ({ onUpdate: handleGestureUpdate, onEnd: handleGestureEnd }),
+    () => ({onUpdate: handleGestureUpdate, onEnd: handleGestureEnd}),
     [handleGestureEnd, handleGestureUpdate],
   );
 
-  const { gesture: pinchGesture, setState: setGestureState } =
+  const {gesture: pinchGesture, setState: setGestureState} =
     useARGestureController({
       initialState: DEFAULT_GESTURE_STATE,
       callbacks: gestureCallbacks,
@@ -779,11 +678,44 @@ export default function ARBetaNativeOverlayView() {
     });
 
   useEffect(() => {
+    let cancelled = false;
+
+    loadPOIsFromAsset(poiBinaryAsset)
+      .then((loadedPOIs) => {
+        if (cancelled) return;
+
+        if (loadedPOIs.length === 0) {
+          throw new Error("POI binary contains no records");
+        }
+
+        setPOIs(loadedPOIs);
+        setPOILoadError(null);
+        Dlog(`📦 Loaded ${loadedPOIs.length} POIs from binary`);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+
+        const resolvedError =
+          error instanceof Error
+            ? error
+            : new Error("Unable to load POI binary");
+
+        setPOILoadError(resolvedError);
+        Elog("POI binary loading failed:", resolvedError);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     Dlog(
       `📐 Initial landscape viewport: ${viewportRef.current.width.toFixed(0)}x${viewportRef.current.height.toFixed(0)}`,
     );
 
     let cancelled = false;
+
     sensorHub
       .start()
       .then(() => {
@@ -799,7 +731,7 @@ export default function ARBetaNativeOverlayView() {
   }, [disposeNativeEngine]);
 
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || pois.length === 0) return;
 
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
@@ -819,7 +751,7 @@ export default function ARBetaNativeOverlayView() {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isReady, renderSnapshot]);
+  }, [isReady, pois.length, renderSnapshot]);
 
   const visiblePOIs = useMemo(
     () => projectedPOIs.filter((poi) => poi.isVisible),
@@ -828,6 +760,7 @@ export default function ARBetaNativeOverlayView() {
 
   const averageBearing = useMemo(() => {
     if (visiblePOIs.length === 0) return 0;
+
     return normalizeAngle(
       visiblePOIs.reduce((sum, poi) => sum + poi.bearing, 0) /
         visiblePOIs.length,
@@ -855,8 +788,20 @@ export default function ARBetaNativeOverlayView() {
         >
           <Text style={styles.poiCounter}>
             POIs: {visiblePOIs.length} visible / {projectedPOIs.length} active ·{" "}
-            {engineMode === "native" ? "C++" : engineMode}
+            {poiLoadError
+              ? "data error"
+              : pois.length === 0
+                ? "loading data"
+                : engineMode === "native"
+                  ? "C++"
+                  : engineMode}
           </Text>
+
+          {poiLoadError ? (
+            <Text style={styles.poiLoadError}>
+              Failed to load POIs: {poiLoadError.message}
+            </Text>
+          ) : null}
 
           {projectedPOIs.map((poi) => {
             if (poi.isVisible) {
@@ -887,25 +832,28 @@ export default function ARBetaNativeOverlayView() {
           <View style={styles.topHUD}>
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>MIN</Text>
-              <Text style={[styles.hudValue, { color: "#4CAF50" }]}>
+              <Text style={[styles.hudValue, {color: "#4CAF50"}]}>
                 {(minDistance / 1000).toFixed(1)}km
               </Text>
             </View>
+
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>BEARING</Text>
-              <Text style={[styles.hudValue, { color: "#00BCD4" }]}>
+              <Text style={[styles.hudValue, {color: "#00BCD4"}]}>
                 {Math.round(averageBearing)}°
               </Text>
             </View>
+
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>MAX</Text>
-              <Text style={[styles.hudValue, { color: "#2196F3" }]}>
+              <Text style={[styles.hudValue, {color: "#2196F3"}]}>
                 {(maxDistance / 1000).toFixed(1)}km
               </Text>
             </View>
+
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>FOV</Text>
-              <Text style={[styles.hudValue, { color: "#FFC107" }]}>
+              <Text style={[styles.hudValue, {color: "#FFC107"}]}>
                 {Math.round(fov)}°
               </Text>
             </View>
@@ -936,7 +884,10 @@ export default function ARBetaNativeOverlayView() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
   poiCounter: {
     position: "absolute",
     left: 10,
@@ -945,8 +896,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.9)",
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowOffset: {width: 1, height: 1},
     textShadowRadius: 1,
+  },
+  poiLoadError: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    top: 34,
+    color: "#ffb4ab",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.95)",
+    textShadowOffset: {width: 1, height: 1},
+    textShadowRadius: 2,
   },
   poiName: {
     position: "absolute",
@@ -955,7 +919,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.95)",
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowOffset: {width: 1, height: 1},
     textShadowRadius: 2,
   },
   poiDot: {
@@ -975,7 +939,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.9)",
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowOffset: {width: 1, height: 1},
     textShadowRadius: 1,
   },
   edgeTriangle: {
@@ -1019,7 +983,10 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  hudCell: { alignItems: "center", flex: 1 },
+  hudCell: {
+    alignItems: "center",
+    flex: 1,
+  },
   hudLabel: {
     fontSize: 8,
     color: "rgba(255,255,255,0.5)",
@@ -1051,5 +1018,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
-  controlButtonText: { fontSize: 24, color: "white" },
+  controlButtonText: {
+    fontSize: 24,
+    color: "white",
+  },
 });
