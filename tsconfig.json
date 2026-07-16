@@ -18,5 +18,13 @@
     "expo-env.d.ts",
     "data/types/**/*.d.ts",
     "data/binaryDataLoader.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "admin",
+    "BCK",
+    "samples",
+    "modules/cumquat-native/build",
+    "CALIBRATION.ts"
   ]
 }
