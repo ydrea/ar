@@ -97,6 +97,44 @@ int main() {
   assert(quaternionFrame.visiblePOIs[0].poiIndex == 0);
   assert(near(quaternionFrame.visiblePOIs[0].x, 0.0, 3.0));
 
+  // Contract: when a quaternion is present, it takes precedence over the
+  // separate heading/pitch/roll fields. An identity quaternion therefore
+  // leaves the vector unchanged even when headingDeg says 180 degrees.
+  {
+    cumquat::SensorState quaternionState;
+    quaternionState.hasOrientationQuaternion = true;
+    quaternionState.orientation = {0.0, 0.0, 0.0, 1.0};
+    quaternionState.headingDeg = 180.0;
+    quaternionState.pitchDeg = 0.0;
+    quaternionState.rollDeg = 0.0;
+
+    const cumquat::Vec3 enu{1.0, 2.0, 3.0};
+    const cumquat::Vec3 camera =
+        cumquat::projection::worldToCamera(enu, quaternionState);
+
+    assert(near(camera.x, 1.0, 1e-9));
+    assert(near(camera.y, 2.0, 1e-9));
+    assert(near(camera.z, 3.0, 1e-9));
+  }
+
+  // Contract: without a quaternion, heading/pitch/roll drive the transform.
+  // A 180-degree heading rotates east/north to west/south and preserves up.
+  {
+    cumquat::SensorState headingState;
+    headingState.hasOrientationQuaternion = false;
+    headingState.headingDeg = 180.0;
+    headingState.pitchDeg = 0.0;
+    headingState.rollDeg = 0.0;
+
+    const cumquat::Vec3 enu{1.0, 2.0, 3.0};
+    const cumquat::Vec3 camera =
+        cumquat::projection::worldToCamera(enu, headingState);
+
+    assert(near(camera.x, -1.0, 1e-9));
+    assert(near(camera.y, -2.0, 1e-9));
+    assert(near(camera.z, 3.0, 1e-9));
+  }
+
   // Behind-camera POIs still produce finite screen-direction coordinates so
   // the UI can place a stable edge indicator instead of falling back to (0, 0).
   double behindX = 0.0;
