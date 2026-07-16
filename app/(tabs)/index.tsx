@@ -1,8 +1,11 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  getCompassCalibrationPercent,
+  sensorHub,
+} from "@/cumquat/sensors";
+import type { CompassAccuracy } from "@/cumquat/types";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Tlog, Slog, Rlog, Plog } from "@/utils/tlog";
 import { router } from "expo-router";
-import { Magnetometer } from "expo-sensors";
 import { useEffect, useState } from "react";
 
 import {
@@ -29,36 +32,45 @@ export default function IndexScreen() {
   const [permissionsReady, setPermissionsReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
+  const [headingAccuracy, setHeadingAccuracy] =
+    useState<CompassAccuracy>(0);
 
-  const calibrateNorth = async (): Promise<number> =>
-    new Promise(async (resolve) => {
-      const sub = Magnetometer.addListener(({ x, y }) => {
-        let heading = (Math.atan2(y, x) * 180) / Math.PI;
-        heading = (heading + 360) % 360;
-
-        sub.remove();
-        resolve(heading);
-      });
-    });
+  const calibrationPercent =
+    getCompassCalibrationPercent(headingAccuracy);
 
   useEffect(() => {
     let mounted = true;
+    let snapshotInterval: ReturnType<typeof setInterval> | null = null;
 
     const init = async () => {
       const granted = await permissions.requestAllPermissions();
-      if (!granted) return;
-      calibrateNorth().then((heading) => {
-        setHeading(heading);
-      });
-      if (!mounted) return;
+      if (!granted || !mounted) return;
+
+      await sensorHub.start();
+      if (!mounted) {
+        sensorHub.stop();
+        return;
+      }
+
+      const updateCompassState = () => {
+        const snapshot = sensorHub.getSnapshot();
+        setHeading(snapshot.heading);
+        setHeadingAccuracy(snapshot.headingAccuracy);
+      };
+
+      updateCompassState();
+      snapshotInterval = setInterval(updateCompassState, 100);
+
       setPermissionsReady(true);
       setReady(true);
     };
 
-    init();
+    void init();
 
     return () => {
       mounted = false;
+      if (snapshotInterval) clearInterval(snapshotInterval);
+      sensorHub.stop();
     };
   }, []);
 
@@ -79,21 +91,20 @@ export default function IndexScreen() {
     };
     return languageMap[langCode] ?? langCode.toUpperCase();
   };
-  // useEffect(() => {
-  //   if (!ready) return;
-  //   const interval = setInterval(() => {
-  //     // const yaw = sensorHub.getSnapshot()?.yaw ?? 0;
-  //     // setHeading(yaw);
-  //   }, 100);
-  //   return () => clearInterval(interval);
-  // }, [ready]);
 
   return (
     <View style={styles.container}>
       <View style={styles.textGroup}>
         <Text style={styles.calibrationText}>
-          {translate("compassCalibration")} ({heading.toFixed(0)}°)
+          {translate("compassCalibration")}: {calibrationPercent}% (
+          {heading.toFixed(0)}°)
         </Text>
+
+        {headingAccuracy < 2 ? (
+          <Text style={styles.calibrationHint}>
+            Move the phone in a figure eight
+          </Text>
+        ) : null}
       </View>
 
       {!ready && <ActivityIndicator size="large" color="#ff4412" />}
@@ -107,7 +118,7 @@ export default function IndexScreen() {
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={true}
+              showsVerticalScrollIndicator
             >
               {availableLanguages.map((lang: string) => {
                 const flag = getFlagEmoji(lang);
@@ -169,6 +180,12 @@ const styles = StyleSheet.create({
   calibrationText: {
     color: "white",
     fontSize: 16,
+  },
+
+  calibrationHint: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 12,
   },
 
   readyContainer: {
