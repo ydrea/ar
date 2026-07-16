@@ -79,9 +79,13 @@ jest.mock("expo-sensors", () => ({
 }));
 
 jest.mock("expo-location", () => ({
+  getForegroundPermissionsAsync: jest
+    .fn()
+    .mockResolvedValue({ status: "granted" }),
   requestForegroundPermissionsAsync: jest
     .fn()
     .mockResolvedValue({ status: "granted" }),
   watchPositionAsync: jest.fn().mockResolvedValue({ remove: jest.fn() }),
+  watchHeadingAsync: jest.fn().mockResolvedValue({ remove: jest.fn() }),
   Accuracy: { BestForNavigation: 1 },
 }));
