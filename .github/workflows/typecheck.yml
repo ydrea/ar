@@ -6,14 +6,20 @@ on:
       - testsDEBUG
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout
+      - name: Checkout head branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -24,25 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type-check active app graph
-        id: typecheck
-        shell: bash
-        run: |
-          set +e
-          npx tsc --noEmit > typecheck.log 2>&1
-          status=$?
-          cat typecheck.log
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Upload typecheck diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: typecheck-log
-          path: typecheck.log
+      - name: Strip production logs
+        if: github.head_ref == 'C++production'
+        run: python3 scripts/strip_production_logs.py
 
       - name: Audit production logging calls
+        if: github.head_ref == 'C++production'
         shell: bash
         run: |
           : > production-log-audit.txt
@@ -59,21 +52,45 @@ jobs:
               ':!**/__tests__/**' \
               ':!**/*.test.*' \
               ':!**/build/**' \
+              ':!modules/cumquat-native/tests/**' \
               > production-log-audit.txt || true
           fi
 
           cat production-log-audit.txt
+          test ! -s production-log-audit.txt
 
-      - name: Upload production log audit
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-log-audit
-          path: production-log-audit.txt
+      - name: Type-check active app graph
+        run: npx tsc --noEmit
 
       - name: Run Jest
         run: npm test -- --runInBand
 
-      - name: Fail on TypeScript errors
-        if: steps.typecheck.outputs.status != '0'
-        run: exit 1
+      - name: Configure native tests
+        if: github.head_ref == 'C++production'
+        run: cmake -S modules/cumquat-native -B modules/cumquat-native/build -DCUMQUAT_BUILD_TESTS=ON
+
+      - name: Build native tests
+        if: github.head_ref == 'C++production'
+        run: cmake --build modules/cumquat-native/build
+
+      - name: Run native tests
+        if: github.head_ref == 'C++production'
+        run: ctest --test-dir modules/cumquat-native/build --output-on-failure
+
+      - name: Validate patch
+        if: github.head_ref == 'C++production'
+        run: git diff --check
+
+      - name: Commit cleaned production source
+        if: github.head_ref == 'C++production'
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app components contexts cumquat hooks modules utils
+          git commit -m "chore: strip production logs"
+          git push origin HEAD:"C++production"
