@@ -254,9 +254,6 @@ export const translate = (key, language, replacements = {}) => {
   const lang = translations[language] || translations.en;
 
   if (!lang || !lang[key]) {
-    console.warn(
-      `Missing translation for key: ${key} in language: ${language}`,
-    );
     return translations.en[key] || key;
   }
 

@@ -3,7 +3,6 @@
 
 #include <cassert>
 #include <cmath>
-#include <iostream>
 
 namespace {
 bool near(double a, double b, double epsilon = 2.0) {
@@ -153,6 +152,5 @@ int main() {
   assert(behindX != 0.0 || behindY != 0.0);
   assert(!near(behindX, 500.0, 0.001) || !near(behindY, 250.0, 0.001));
 
-  std::cout << "cumquat_core_tests passed\n";
   return 0;
 }

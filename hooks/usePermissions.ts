@@ -29,12 +29,6 @@ export function usePermissions() {
   };
 
   const requestAllPermissions = async () => {
-    console.log("Requesting all permissions...");
-    console.log("Current states:", {
-      cameraGranted: cameraPermission?.granted,
-      locationGranted,
-    });
-
     // Request permissions sequentially to avoid issues in preview builds
     // Some platforms don't handle parallel permission requests well
     let camera = cameraPermission?.granted || false;
@@ -43,15 +37,11 @@ export function usePermissions() {
     if (!camera) {
       const cameraResult = await requestCameraPermission();
       camera = cameraResult.granted;
-      console.log("Camera permission result:", camera);
     }
 
     if (!location) {
       location = await requestLocationPermission();
-      console.log("Location permission result:", location);
     }
-
-    console.log("Final permission results:", { camera, location });
 
     // Refresh location permission state after requesting
     if (!locationGranted && location) {

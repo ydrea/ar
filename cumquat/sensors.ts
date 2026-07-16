@@ -3,7 +3,6 @@ import {DeviceMotion} from "expo-sensors";
 import * as Location from "expo-location";
 
 import {AR_CONSTANTS} from "@/cumquat/constants";
-import {Tlog} from "@/utils/tlog";
 
 import {nativeProjectionDebug} from "./nativeProjectionDebug";
 import type {Quat, ScreenPosition, SensorSnapshot, Vec3} from "./types";
@@ -98,7 +97,6 @@ class SensorHub {
     await this.startDeviceMotion();
     await this.startLocation();
     await this.startHeading();
-    Tlog("✅ SensorHub started");
   }
 
   getSnapshot(): SensorSnapshot {
@@ -132,7 +130,6 @@ class SensorHub {
 
     const permission = await DeviceMotion.requestPermissionsAsync();
     if (permission.status !== "granted") {
-      Tlog("⚠️ DeviceMotion permission not granted");
       return;
     }
 
@@ -202,7 +199,6 @@ class SensorHub {
   private async startLocation(): Promise<void> {
     if (this.locationWatch) return;
     if (!(await this.ensureLocationPermission())) {
-      Tlog("⚠️ Location permission not granted");
       return;
     }
 
@@ -242,8 +238,8 @@ class SensorHub {
         );
         this.snapshot.timestamp = Date.now();
       });
-    } catch (error) {
-      Tlog(`⚠️ Compass heading unavailable: ${String(error)}`);
+    } catch {
+      this.headingWatch = null;
     }
   }
 }
@@ -261,7 +257,6 @@ function geoToENU(
   alt2: number,
 ): Vec3 {
   if (!Number.isFinite(lat2) || !Number.isFinite(lon2)) {
-    Tlog(`Invalid POI coordinates: lat=${lat2}, lon=${lon2}`);
     return {x: 0, y: 0, z: 0};
   }
 

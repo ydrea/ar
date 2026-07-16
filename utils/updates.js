@@ -16,11 +16,6 @@ export async function checkForUpdates(channel, silent = false) {
         currentInfo.channel !== channel &&
         currentInfo.channel !== "unknown"
       ) {
-        if (!silent) {
-          console.log(
-            `Current channel (${currentInfo.channel}) doesn't match requested (${channel})`,
-          );
-        }
         return false;
       }
     }
@@ -40,14 +35,10 @@ export async function checkForUpdates(channel, silent = false) {
       await Updates.reloadAsync();
       return true;
     } else {
-      if (!silent) {
-        console.log("No updates available");
-      }
       return false;
     }
-  } catch (error) {
+  } catch {
     if (!silent) {
-      console.error("Update check failed:", error);
       Alert.alert(
         "Update Error",
         "Failed to check for updates. Using cached version.",
@@ -69,8 +60,7 @@ export async function getCurrentUpdateInfo() {
       runtimeVersion: update?.runtimeVersion ?? "unknown",
       isEmbeddedLaunch: update?.isEmbeddedLaunch ?? true,
     };
-  } catch (error) {
-    console.log("getCurrentUpdateAsync not available in development");
+  } catch {
     return {
       updateId: "unknown",
       channel: "unknown",
@@ -90,23 +80,8 @@ export function configureUpdates(buildProfile) {
     // Set update check interval (in seconds)
     Updates.checkForUpdateAsync();
 
-    // Listen for update events
-    if (Updates.addListener) {
-      Updates.addListener((event) => {
-        if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
-          console.log("Update available:", event.updateId);
-        }
-      });
-    }
   }
 
-  // Log current update info for debugging
-  getCurrentUpdateInfo().then((info) => {
-    console.log("Current update info:", {
-      ...info,
-      buildProfile: buildProfile || "unknown",
-    });
-  });
 }
 
 /**
