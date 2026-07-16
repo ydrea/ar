@@ -1,0 +1,47 @@
+name: Production log audit
+
+on:
+  push:
+    branches:
+      - "C++production"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find runtime logging calls
+        shell: bash
+        run: |
+          set -o pipefail
+          : > production-log-audit.txt
+
+          roots=(app components contexts cumquat data hooks modules ui utils)
+          existing=()
+          for root in "${roots[@]}"; do
+            [[ -e "$root" ]] && existing+=("$root")
+          done
+
+          if ((${#existing[@]})); then
+            git grep -nE \
+              'console\.(log|warn|error)|\b(Tlog|Slog|Rlog|Plog|Elog|Dlog|PlogPerf)[[:space:]]*\(|std::(cout|cerr)|(^|[^[:alnum:]_])(printf|fprintf)[[:space:]]*\(|__android_log|\bLOG[DIWEF][[:space:]]*\(' \
+              -- "${existing[@]}" \
+              ':!**/__tests__/**' \
+              ':!**/*.test.*' \
+              ':!**/build/**' \
+              > production-log-audit.txt || true
+          fi
+
+          cat production-log-audit.txt
+
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-log-audit
+          path: production-log-audit.txt
+          if-no-files-found: error
