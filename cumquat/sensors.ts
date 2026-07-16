@@ -76,8 +76,11 @@ class SensorHub {
   private locationWatch: {remove(): void} | null = null;
   private headingWatch: {remove(): void} | null = null;
   private startPromise: Promise<void> | null = null;
+  private consumerCount = 0;
 
   async start(): Promise<void> {
+    this.consumerCount += 1;
+
     if (this.startPromise) return this.startPromise;
 
     this.startPromise = this.startSensors();
@@ -85,6 +88,7 @@ class SensorHub {
     try {
       await this.startPromise;
     } catch (error) {
+      this.consumerCount = Math.max(0, this.consumerCount - 1);
       this.startPromise = null;
       throw error;
     }
@@ -107,6 +111,12 @@ class SensorHub {
   }
 
   stop(): void {
+    if (this.consumerCount > 0) {
+      this.consumerCount -= 1;
+    }
+
+    if (this.consumerCount > 0) return;
+
     this.deviceMotionSub?.remove();
     this.locationWatch?.remove();
     this.headingWatch?.remove();
