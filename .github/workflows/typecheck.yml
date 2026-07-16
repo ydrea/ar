@@ -44,6 +44,10 @@ jobs:
               "' /////////////////////\\nuseEffect",
               "'/////////////////////\\nuseEffect",
           )
+          text = text.replace(
+              "'    getNativeVersion(): string;\\n'",
+              "'  getNativeVersion(): string;\\n'",
+          )
           path.write_text(text, encoding="utf-8")
           PY
           python3 scripts/strip_production_logs.py > strip-production-logs.txt 2>&1
