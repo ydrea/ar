@@ -11,6 +11,20 @@ import type {Quat, ScreenPosition, SensorSnapshot, Vec3} from "./types";
 const {DEG2RAD, RAD2DEG, WGS84_F, WGS84_A} = AR_CONSTANTS;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
 
+function normalizeHeading(degrees: number): number {
+  if (!Number.isFinite(degrees)) return 0;
+  return ((degrees % 360) + 360) % 360;
+}
+
+function normalizeHeadingAccuracy(value: number): 0 | 1 | 2 | 3 {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(3, Math.round(value))) as 0 | 1 | 2 | 3;
+}
+
+function getCompassCalibrationPercent(accuracy: number): number {
+  return Math.round((normalizeHeadingAccuracy(accuracy) / 3) * 100);
+}
+
 // ============ QUATERNION MATH ============
 
 function inverse(q: Quat): Quat {
@@ -51,15 +65,35 @@ class SensorHub {
     lon: 0,
     elevation: 0,
     orientation: {x: 0, y: 0, z: 0, w: 1},
+    heading: 0,
+    headingAccuracy: 0,
+    magneticHeading: 0,
+    trueHeading: null,
     timestamp: 0,
   };
 
   private deviceMotionSub: {remove(): void} | null = null;
   private locationWatch: {remove(): void} | null = null;
+  private headingWatch: {remove(): void} | null = null;
+  private startPromise: Promise<void> | null = null;
 
   async start(): Promise<void> {
+    if (this.startPromise) return this.startPromise;
+
+    this.startPromise = this.startSensors();
+
+    try {
+      await this.startPromise;
+    } catch (error) {
+      this.startPromise = null;
+      throw error;
+    }
+  }
+
+  private async startSensors(): Promise<void> {
     await this.startDeviceMotion();
     await this.startLocation();
+    await this.startHeading();
     Tlog("✅ SensorHub started");
   }
 
@@ -75,13 +109,23 @@ class SensorHub {
   stop(): void {
     this.deviceMotionSub?.remove();
     this.locationWatch?.remove();
+    this.headingWatch?.remove();
     this.deviceMotionSub = null;
     this.locationWatch = null;
+    this.headingWatch = null;
+    this.startPromise = null;
     nativeProjectionDebug.dispose();
   }
 
   private async startDeviceMotion(): Promise<void> {
-    await DeviceMotion.requestPermissionsAsync();
+    if (this.deviceMotionSub) return;
+
+    const permission = await DeviceMotion.requestPermissionsAsync();
+    if (permission.status !== "granted") {
+      Tlog("⚠️ DeviceMotion permission not granted");
+      return;
+    }
+
     DeviceMotion.setUpdateInterval(16);
 
     this.deviceMotionSub = DeviceMotion.addListener((motion) => {
@@ -137,9 +181,20 @@ class SensorHub {
     });
   }
 
+  private async ensureLocationPermission(): Promise<boolean> {
+    const current = await Location.getForegroundPermissionsAsync();
+    if (current.status === "granted") return true;
+
+    const requested = await Location.requestForegroundPermissionsAsync();
+    return requested.status === "granted";
+  }
+
   private async startLocation(): Promise<void> {
-    const {status} = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
+    if (this.locationWatch) return;
+    if (!(await this.ensureLocationPermission())) {
+      Tlog("⚠️ Location permission not granted");
+      return;
+    }
 
     this.locationWatch = await Location.watchPositionAsync(
       {
@@ -151,8 +206,35 @@ class SensorHub {
         this.snapshot.lat = position.coords.latitude;
         this.snapshot.lon = position.coords.longitude;
         this.snapshot.elevation = position.coords.altitude ?? 0;
+        this.snapshot.timestamp = Date.now();
       },
     );
+  }
+
+  private async startHeading(): Promise<void> {
+    if (this.headingWatch) return;
+    if (!(await this.ensureLocationPermission())) return;
+
+    try {
+      this.headingWatch = await Location.watchHeadingAsync((reading) => {
+        const magneticHeading = normalizeHeading(reading.magHeading);
+        const hasTrueHeading =
+          Number.isFinite(reading.trueHeading) && reading.trueHeading >= 0;
+        const trueHeading = hasTrueHeading
+          ? normalizeHeading(reading.trueHeading)
+          : null;
+
+        this.snapshot.magneticHeading = magneticHeading;
+        this.snapshot.trueHeading = trueHeading;
+        this.snapshot.heading = trueHeading ?? magneticHeading;
+        this.snapshot.headingAccuracy = normalizeHeadingAccuracy(
+          reading.accuracy,
+        );
+        this.snapshot.timestamp = Date.now();
+      });
+    } catch (error) {
+      Tlog(`⚠️ Compass heading unavailable: ${String(error)}`);
+    }
   }
 }
 
@@ -420,4 +502,5 @@ export {
   inverse,
   rotateVector,
   calculateBearing,
+  getCompassCalibrationPercent,
 };
