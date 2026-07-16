@@ -569,7 +569,7 @@ export default function ARBetaNativeOverlayView() {
               altitude: snapshot.elevation,
             },
             orientationQuaternion: snapshot.orientation,
-            headingDegrees: 0,
+            headingDegrees: snapshot.heading,
             pitchDegrees: 0,
             rollDegrees: 0,
             viewportWidth: currentViewport.width,

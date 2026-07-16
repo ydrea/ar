@@ -34,9 +34,7 @@ describe("sensors utilities", () => {
   describe("rotateVector", () => {
     test("identity quaternion preserves a vector", () => {
       const vector = { x: 3, y: 4, z: 12 };
-      expect(rotateVector(vector, { x: 0, y: 0, z: 0, w: 1 })).toEqual(
-        vector,
-      );
+      expect(rotateVector(vector, { x: 0, y: 0, z: 0, w: 1 })).toEqual(vector);
     });
 
     test("180 degree yaw flips the forward vector", () => {
@@ -139,7 +137,9 @@ describe("sensors utilities", () => {
 
     test("distance boundaries are inclusive", () => {
       expect(project({ x: 0, y: 0, z: -1 }, 1).clippedByDistance).toBe(null);
-      expect(project({ x: 0, y: 0, z: -100 }, 100).clippedByDistance).toBe(null);
+      expect(project({ x: 0, y: 0, z: -100 }, 100).clippedByDistance).toBe(
+        null,
+      );
     });
 
     test("wider FOV compresses horizontal projection toward center", () => {
@@ -150,18 +150,37 @@ describe("sensors utilities", () => {
 
       expect(narrow.visible).toBe(true);
       expect(wide.visible).toBe(true);
-      expect(Math.abs(wide.x - 500)).toBeLessThan(
-        Math.abs(narrow.x - 500),
-      );
+      expect(Math.abs(wide.x - 500)).toBeLessThan(Math.abs(narrow.x - 500));
+    });
+
+    test("narrower FOV expands horizontal projection", () => {
+      // sensors.ts maps camera-space -Y to screen +X.
+      const cameraPos = { x: 0, y: -1, z: -10 };
+      const narrow = project(cameraPos, 10, 30);
+      const wide = project(cameraPos, 10, 90);
+
+      expect(narrow.visible).toBe(true);
+      expect(wide.visible).toBe(true);
+      expect(Math.abs(narrow.x - 500)).toBeGreaterThan(Math.abs(wide.x - 500));
     });
   });
 
   describe("calculateBearing", () => {
     test.each([
-      { label: "same point", from: [45.8, 15.96], to: [45.8, 15.96], expected: 0 },
+      {
+        label: "same point",
+        from: [45.8, 15.96],
+        to: [45.8, 15.96],
+        expected: 0,
+      },
       { label: "east", from: [45.8, 15.96], to: [45.8, 15.97], expected: 90 },
       { label: "north", from: [45.8, 15.96], to: [45.81, 15.96], expected: 0 },
-      { label: "south", from: [45.8, 15.96], to: [45.79, 15.96], expected: 180 },
+      {
+        label: "south",
+        from: [45.8, 15.96],
+        to: [45.79, 15.96],
+        expected: 180,
+      },
       { label: "west", from: [45.8, 15.96], to: [45.8, 15.95], expected: 270 },
     ])("returns the expected bearing for $label", ({ from, to, expected }) => {
       expect(calculateBearing(from[0], from[1], to[0], to[1])).toBeCloseTo(

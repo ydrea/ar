@@ -116,6 +116,12 @@ jest.mock("@/cumquat/sensors", () => {
       lon: 15.96,
       elevation: 120,
       orientation: { x: 0, y: 0, z: 0, w: 1 },
+
+      heading: 225,
+      headingAccuracy: 3,
+      magneticHeading: 225,
+      trueHeading: 225,
+
       timestamp: Date.now(),
     })),
   };
@@ -196,6 +202,27 @@ describe("beta ARView", () => {
     console.log = originalLog;
   });
 
+  test("passes SensorHub heading to the native engine", async () => {
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(mockNativeEngine.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headingDegrees: 225,
+
+          location: expect.objectContaining({
+            latitude: 45.8,
+            longitude: 15.96,
+            altitude: 120,
+          }),
+
+          viewportWidth: expect.any(Number),
+          viewportHeight: expect.any(Number),
+        }),
+      );
+    });
+  });
+
   test("renders the animated camera and starts SensorHub", async () => {
     await render(<ARView />);
 
@@ -206,6 +233,44 @@ describe("beta ARView", () => {
         require("@/cumquat/sensors").sensorHub.start,
       ).toHaveBeenCalledTimes(1);
     });
+  });
+
+  test("two consumers share one native subscription", async () => {
+    await sensorHub.start();
+    await sensorHub.start();
+
+    expect(Location.watchHeadingAsync).toHaveBeenCalledTimes(1);
+
+    sensorHub.stop();
+
+    // Still active because one consumer remains.
+    expect(removeHeading).not.toHaveBeenCalled();
+
+    sensorHub.stop();
+
+    expect(removeHeading).toHaveBeenCalledTimes(1);
+  });
+
+  test("updates the native engine with the latest sensor data", async () => {
+    expect(mockNativeEngine.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        headingDegrees: 225,
+        location: expect.objectContaining({
+          latitude: 45.8,
+          longitude: 15.96,
+        }),
+        viewportWidth: expect.any(Number),
+        viewportHeight: expect.any(Number),
+      }),
+    );
+
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(mockNativeEngine.update).toHaveBeenCalled();
+    });
+
+    expect(mockNativeEngine.update).toHaveBeenCalledTimes(1);
   });
 
   test("creates one native engine with a hard dataset radius", async () => {
