@@ -32,7 +32,27 @@ jobs:
 
       - name: Strip production logs
         if: github.head_ref == 'C++production'
-        run: python3 scripts/strip_production_logs.py
+        id: strip
+        shell: bash
+        run: |
+          set +e
+          python3 scripts/strip_production_logs.py > strip-production-logs.txt 2>&1
+          status=$?
+          cat strip-production-logs.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload strip diagnostics
+        if: always() && github.head_ref == 'C++production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: strip-production-logs
+          path: strip-production-logs.txt
+          if-no-files-found: error
+
+      - name: Fail on strip errors
+        if: github.head_ref == 'C++production' && steps.strip.outputs.status != '0'
+        run: exit 1
 
       - name: Audit production logging calls
         if: github.head_ref == 'C++production'
