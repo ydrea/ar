@@ -1,6 +1,21 @@
 import type {Quat, SensorSnapshot, Vec3} from "@/cumquat/types";
 
-const mockRawSnapshot: SensorSnapshot = {
+jest.mock("@/cumquat/sensors", () => ({
+  sensorHub: {
+    start: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn(),
+    getSnapshot: jest.fn(),
+  },
+}));
+
+import {sensorHub} from "@/cumquat/sensors";
+import {
+  CAMERA_SCREEN_ORIENTATION_DEGREES,
+  createNorthAlignedCameraQuaternion,
+  installNorthAlignedOrientation,
+} from "@/cumquat/northAlignedOrientation";
+
+const rawSnapshot: SensorSnapshot = {
   lat: 45.8,
   lon: 15.96,
   elevation: 120,
@@ -12,25 +27,9 @@ const mockRawSnapshot: SensorSnapshot = {
   timestamp: 1,
 };
 
-const mockGetSnapshot = jest.fn(() => ({
-  ...mockRawSnapshot,
-  orientation: {...mockRawSnapshot.orientation},
-}));
-
-jest.mock("@/cumquat/sensors", () => ({
-  sensorHub: {
-    start: jest.fn().mockResolvedValue(undefined),
-    stop: jest.fn(),
-    getSnapshot: mockGetSnapshot,
-  },
-}));
-
-import {sensorHub} from "@/cumquat/sensors";
-import {
-  CAMERA_SCREEN_ORIENTATION_DEGREES,
-  createNorthAlignedCameraQuaternion,
-  installNorthAlignedOrientation,
-} from "@/cumquat/northAlignedOrientation";
+const rawGetSnapshot = sensorHub.getSnapshot as jest.MockedFunction<
+  typeof sensorHub.getSnapshot
+>;
 
 function rotateVector(v: Vec3, q: Quat): Vec3 {
   const tx = 2 * (q.y * v.z - q.z * v.y);
@@ -51,6 +50,13 @@ function expectVectorClose(actual: Vec3, expected: Vec3): void {
 }
 
 describe("north-aligned camera quaternion", () => {
+  beforeEach(() => {
+    rawGetSnapshot.mockReturnValue({
+      ...rawSnapshot,
+      orientation: {...rawSnapshot.orientation},
+    });
+  });
+
   test("uses Expo LeftLandscape for home-button-right orientation", () => {
     expect(CAMERA_SCREEN_ORIENTATION_DEGREES).toBe(-90);
 
@@ -135,13 +141,13 @@ describe("north-aligned camera quaternion", () => {
 
     const snapshot = sensorHub.getSnapshot();
     const expected = createNorthAlignedCameraQuaternion(
-      mockRawSnapshot.orientation,
+      rawSnapshot.orientation,
       CAMERA_SCREEN_ORIENTATION_DEGREES,
-      mockRawSnapshot.magneticHeading,
-      mockRawSnapshot.trueHeading,
+      rawSnapshot.magneticHeading,
+      rawSnapshot.trueHeading,
     );
 
-    expect(mockGetSnapshot).toHaveBeenCalledTimes(1);
+    expect(rawGetSnapshot).toHaveBeenCalledTimes(1);
     expect(snapshot.orientation.x).toBeCloseTo(expected.x, 12);
     expect(snapshot.orientation.y).toBeCloseTo(expected.y, 12);
     expect(snapshot.orientation.z).toBeCloseTo(expected.z, 12);
