@@ -14,10 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {GestureDetector} from "react-native-gesture-handler";
-import type {CameraType} from "expo-camera";
+import { GestureDetector } from "react-native-gesture-handler";
+import type { CameraType } from "expo-camera";
 
-import {AR_CONSTANTS} from "@/cumquat/constants";
+import { AR_CONSTANTS } from "@/cumquat/constants";
 import {
   calculateBearing,
   geoToENU,
@@ -25,17 +25,17 @@ import {
   rotateVector,
   sensorHub,
 } from "@/cumquat/sensors";
-import type {ScreenPosition, SensorSnapshot} from "@/cumquat/types";
-import {useARGestureController} from "@/cumquat/gestures/useARGestureController";
+import type { ScreenPosition, SensorSnapshot } from "@/cumquat/types";
+import { useARGestureController } from "@/cumquat/gestures/useARGestureController";
 import type {
   GestureState,
   GestureUpdate,
   LimitType,
 } from "@/cumquat/gestures/types";
-import type {BinaryPOI} from "@/data/binaryDataLoader";
-import {loadPOIsFromAsset} from "@/data/binaryDataLoader";
+import type { BinaryPOI } from "@/data/binaryDataLoader";
+import { loadPOIsFromAsset } from "@/data/binaryDataLoader";
 import poiBinaryAsset from "@/data/pois.json.bin";
-import {useCameraZoom} from "@/hooks/useCameraZoom";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 import type {
   EngineConfig,
   FrameSnapshot,
@@ -44,8 +44,8 @@ import type {
   SensorState,
   ViewState as NativeViewState,
 } from "@/modules/cumquat-native/src/types";
-import {RubberBandVisualFeedback} from "@/ui/RubberBandVisualFeedback";
-import {Dlog, Elog, Rlog, Tlog} from "@/utils/tlog";
+import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
+import { Dlog, Elog, Rlog, Tlog } from "@/utils/tlog";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 const POSITION_COMMIT_THRESHOLD_PX = 1.5;
@@ -187,10 +187,8 @@ function mapNativePOI(
     bearing: nativePOI.bearing,
     screenPos,
     isDistanceClipped: nativePOI.clippedByDistance !== null,
-    isOffscreen:
-      nativePOI.clipped && nativePOI.clippedByDistance === null,
-    isVisible:
-      nativePOI.visible && nativePOI.clippedByDistance === null,
+    isOffscreen: nativePOI.clipped && nativePOI.clippedByDistance === null,
+    isVisible: nativePOI.visible && nativePOI.clippedByDistance === null,
   };
 }
 
@@ -273,10 +271,8 @@ function projectWithJavaScript(
         bearing,
         screenPos,
         isDistanceClipped: screenPos.clippedByDistance != null,
-        isOffscreen:
-          screenPos.clipped && screenPos.clippedByDistance == null,
-        isVisible:
-          screenPos.visible && screenPos.clippedByDistance == null,
+        isOffscreen: screenPos.clipped && screenPos.clippedByDistance == null,
+        isVisible: screenPos.visible && screenPos.clippedByDistance == null,
       },
     ];
   });
@@ -302,12 +298,8 @@ function getIndicatorPlacement(
 ): IndicatorPlacement {
   const centerX = viewport.width / 2;
   const centerY = viewport.height / 2;
-  const sourceX = Number.isFinite(poi.screenPos.x)
-    ? poi.screenPos.x
-    : centerX;
-  const sourceY = Number.isFinite(poi.screenPos.y)
-    ? poi.screenPos.y
-    : centerY;
+  const sourceX = Number.isFinite(poi.screenPos.x) ? poi.screenPos.x : centerX;
+  const sourceY = Number.isFinite(poi.screenPos.y) ? poi.screenPos.y : centerY;
 
   let dx = sourceX - centerX;
   let dy = sourceY - centerY;
@@ -347,13 +339,9 @@ function getIndicatorPlacement(
   const availableX = viewport.width / 2 - EDGE_MARGIN;
   const availableY = viewport.height / 2 - EDGE_MARGIN;
   const scaleX =
-    Math.abs(dx) > 0.001
-      ? availableX / Math.abs(dx)
-      : Number.POSITIVE_INFINITY;
+    Math.abs(dx) > 0.001 ? availableX / Math.abs(dx) : Number.POSITIVE_INFINITY;
   const scaleY =
-    Math.abs(dy) > 0.001
-      ? availableY / Math.abs(dy)
-      : Number.POSITIVE_INFINITY;
+    Math.abs(dy) > 0.001 ? availableY / Math.abs(dy) : Number.POSITIVE_INFINITY;
   const scale = Math.min(scaleX, scaleY);
 
   return {
@@ -369,7 +357,7 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
 }: {
   poi: RenderPOI;
 }) {
-  const {x, y} = poi.screenPos;
+  const { x, y } = poi.screenPos;
   const distanceRatio = Math.min(1, poi.distance / 2000);
   const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
   const fontSize = Math.max(10, 16 - distanceRatio * 6);
@@ -394,14 +382,14 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
 
       <View
         pointerEvents="none"
-        style={[styles.poiDot, {left: x - 7, top: y - 7, opacity}]}
+        style={[styles.poiDot, { left: x - 7, top: y - 7, opacity }]}
       />
 
       <Text
         pointerEvents="none"
         style={[
           styles.poiDistance,
-          {left: x - LABEL_WIDTH / 2, top: y + 10, opacity},
+          { left: x - LABEL_WIDTH / 2, top: y + 10, opacity },
         ]}
       >
         {formatDistance(poi.distance)}
@@ -424,7 +412,7 @@ const EdgeTriangle = memo(function EdgeTriangle({
           left: placement.x - 8,
           top: placement.y - 8,
           borderLeftColor: placement.color,
-          transform: [{rotate: `${placement.angle}rad`}],
+          transform: [{ rotate: `${placement.angle}rad` }],
         },
       ]}
     />
@@ -456,8 +444,7 @@ export default function ARBetaNativeOverlayView() {
   const gestureStateRef = useRef<GestureState>(DEFAULT_GESTURE_STATE);
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const lastLocationRef = useRef<SensorSnapshot | null>(null);
-  const lastCommittedNativeFrameRef =
-    useRef<readonly NativeProjectedPOI[]>([]);
+  const lastCommittedNativeFrameRef = useRef<readonly NativeProjectedPOI[]>([]);
   const frameCountRef = useRef(0);
 
   const nativePOIs = useMemo<readonly POIInput[]>(
@@ -472,7 +459,7 @@ export default function ARBetaNativeOverlayView() {
     [pois],
   );
 
-  const {cameraRef, animatedZoom, animatedProps, AnimatedCamera} =
+  const { cameraRef, animatedZoom, animatedProps, AnimatedCamera } =
     useCameraZoom({
       initialZoom: DEFAULT_GESTURE_STATE.zoom,
       springConfig: {
@@ -666,11 +653,11 @@ export default function ARBetaNativeOverlayView() {
   );
 
   const gestureCallbacks = useMemo(
-    () => ({onUpdate: handleGestureUpdate, onEnd: handleGestureEnd}),
+    () => ({ onUpdate: handleGestureUpdate, onEnd: handleGestureEnd }),
     [handleGestureEnd, handleGestureUpdate],
   );
 
-  const {gesture: pinchGesture, setState: setGestureState} =
+  const { gesture: pinchGesture, setState: setGestureState } =
     useARGestureController({
       initialState: DEFAULT_GESTURE_STATE,
       callbacks: gestureCallbacks,
@@ -807,7 +794,18 @@ export default function ARBetaNativeOverlayView() {
             if (poi.isVisible) {
               return <VisiblePOIMarker key={poi.id} poi={poi} />;
             }
-
+            //////////////////////
+            // // triangles debugging
+            // if (!poi.isVisible) {
+            //   console.log("TRIANGLE", {
+            //     name: poi.name,
+            //     distance: poi.distance,
+            //     clipped: poi.screenPos.clipped,
+            //     clippedByDistance: poi.screenPos.clippedByDistance,
+            //     isOffscreen: poi.isOffscreen,
+            //   });
+            // }
+            ///////////////////////
             const kind = classifyIndicator(poi);
             if (!kind) return null;
 
@@ -832,28 +830,28 @@ export default function ARBetaNativeOverlayView() {
           <View style={styles.topHUD}>
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>MIN</Text>
-              <Text style={[styles.hudValue, {color: "#4CAF50"}]}>
+              <Text style={[styles.hudValue, { color: "#4CAF50" }]}>
                 {(minDistance / 1000).toFixed(1)}km
               </Text>
             </View>
 
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>BEARING</Text>
-              <Text style={[styles.hudValue, {color: "#00BCD4"}]}>
+              <Text style={[styles.hudValue, { color: "#00BCD4" }]}>
                 {Math.round(averageBearing)}°
               </Text>
             </View>
 
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>MAX</Text>
-              <Text style={[styles.hudValue, {color: "#2196F3"}]}>
+              <Text style={[styles.hudValue, { color: "#2196F3" }]}>
                 {(maxDistance / 1000).toFixed(1)}km
               </Text>
             </View>
 
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>FOV</Text>
-              <Text style={[styles.hudValue, {color: "#FFC107"}]}>
+              <Text style={[styles.hudValue, { color: "#FFC107" }]}>
                 {Math.round(fov)}°
               </Text>
             </View>
@@ -896,7 +894,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.9)",
-    textShadowOffset: {width: 1, height: 1},
+    textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 1,
   },
   poiLoadError: {
@@ -909,7 +907,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.95)",
-    textShadowOffset: {width: 1, height: 1},
+    textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   poiName: {
@@ -919,7 +917,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.95)",
-    textShadowOffset: {width: 1, height: 1},
+    textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   poiDot: {
@@ -939,7 +937,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.9)",
-    textShadowOffset: {width: 1, height: 1},
+    textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 1,
   },
   edgeTriangle: {
@@ -970,8 +968,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 255, 255, 0.8)",
   },
   topHUD: {
+    opacity: 0.75,
     position: "absolute",
-    top: 55,
+    bottom: 55,
     left: 12,
     right: 12,
     flexDirection: "row",

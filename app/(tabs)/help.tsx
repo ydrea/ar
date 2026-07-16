@@ -239,8 +239,8 @@ const GestureCard = ({
   >
     <View style={styles.gestureIcon}>{icon}</View>
     <View style={styles.gestureContent}>
-      <Text style={[styles.gestureTitle, { color }]}>{title}</Text>
-      <Text style={styles.gestureDescription}>{description}</Text>
+      <Text style={[styles.subtitle, { color }]}>{title}</Text>
+      <Text style={styles.subtitle}>{description}</Text>
     </View>
   </Animated.View>
 );

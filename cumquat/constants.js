@@ -30,7 +30,7 @@ export const AR_CONSTANTS = {
   FOV: {
     MIN: 30,
     MAX: 120,
-    DEFAULT: 120,
+    DEFAULT: 90,
     STEP: 10,
   },
 
@@ -39,7 +39,7 @@ export const AR_CONSTANTS = {
     MIN: 0,
     MAX: 135000, // 135km
     DEFAULT_MIN: 0,
-    DEFAULT_MAX: 13500, // 13.5km default
+    DEFAULT_MAX: 1350, // 13.5km default
     STEP: 10000, // 10km steps
   },
 
