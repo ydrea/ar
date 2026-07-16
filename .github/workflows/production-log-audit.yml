@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - "C++production"
+  pull_request:
+    branches:
+      - testsDEBUG
   workflow_dispatch:
 
 jobs:
