@@ -1,4 +1,4 @@
-name: TypeScript cleanup
+name: Production verification
 
 on:
   pull_request:
@@ -6,20 +6,14 @@ on:
       - testsDEBUG
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
-      - name: Checkout head branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -30,47 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Strip production logs
-        if: github.head_ref == 'C++production'
-        id: strip
-        shell: bash
-        run: |
-          set +e
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("scripts/strip_production_logs.py")
-          text = path.read_text(encoding="utf-8")
-          text = text.replace(
-              "' /////////////////////\\nuseEffect",
-              "'/////////////////////\\nuseEffect",
-          )
-          text = text.replace(
-              "'    getNativeVersion(): string;\\n'",
-              "'  getNativeVersion(): string;\\n'",
-          )
-          text = text.replace("    expected=3,\n)", "    expected=2,\n)", 1)
-          path.write_text(text, encoding="utf-8")
-          PY
-          python3 scripts/strip_production_logs.py > strip-production-logs.txt 2>&1
-          status=$?
-          cat strip-production-logs.txt
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Upload strip diagnostics
-        if: always() && github.head_ref == 'C++production'
-        uses: actions/upload-artifact@v4
-        with:
-          name: strip-production-logs
-          path: strip-production-logs.txt
-          if-no-files-found: error
-
-      - name: Fail on strip errors
-        if: github.head_ref == 'C++production' && steps.strip.outputs.status != '0'
-        run: exit 1
-
-      - name: Audit production logging calls
-        if: github.head_ref == 'C++production'
+      - name: Reject runtime logging calls
         shell: bash
         run: |
           : > production-log-audit.txt
@@ -87,7 +41,6 @@ jobs:
               ':!**/__tests__/**' \
               ':!**/*.test.*' \
               ':!**/build/**' \
-              ':!modules/cumquat-native/tests/**' \
               > production-log-audit.txt || true
           fi
 
@@ -101,31 +54,10 @@ jobs:
         run: npm test -- --runInBand
 
       - name: Configure native tests
-        if: github.head_ref == 'C++production'
         run: cmake -S modules/cumquat-native -B modules/cumquat-native/build -DCUMQUAT_BUILD_TESTS=ON
 
       - name: Build native tests
-        if: github.head_ref == 'C++production'
         run: cmake --build modules/cumquat-native/build
 
       - name: Run native tests
-        if: github.head_ref == 'C++production'
         run: ctest --test-dir modules/cumquat-native/build --output-on-failure
-
-      - name: Validate patch
-        if: github.head_ref == 'C++production'
-        run: git diff --check
-
-      - name: Commit cleaned production source
-        if: github.head_ref == 'C++production'
-        shell: bash
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app components contexts cumquat hooks modules utils
-          git commit -m "chore: strip production logs"
-          git push origin HEAD:"C++production"
