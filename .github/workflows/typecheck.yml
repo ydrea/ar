@@ -36,6 +36,16 @@ jobs:
         shell: bash
         run: |
           set +e
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/strip_production_logs.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "' /////////////////////\\nuseEffect",
+              "'/////////////////////\\nuseEffect",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
           python3 scripts/strip_production_logs.py > strip-production-logs.txt 2>&1
           status=$?
           cat strip-production-logs.txt
