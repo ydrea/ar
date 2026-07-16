@@ -20,6 +20,7 @@ import {
 } from "./gestureMath";
 import type {
   GestureCallbacks,
+  GestureConfig,
   GestureMode,
   GestureState,
 } from "./types";
@@ -30,6 +31,9 @@ export type UseARGestureControllerOptions = {
 
   /** Optional CameraView zoom SharedValue. Updated directly on the UI thread. */
   cameraZoom?: SharedValue<number>;
+
+  /** Optional gesture tuning. Captured as a plain UI-thread shareable. */
+  config?: GestureConfig;
 
   directionThreshold?: number;
   directionDominanceRatio?: number;
@@ -53,16 +57,30 @@ export function useARGestureController({
   initialState,
   callbacks,
   cameraZoom,
+  config,
   directionThreshold = 20,
   directionDominanceRatio = 1.5,
 }: UseARGestureControllerOptions): ARGestureControllerHandle {
+  // Do not read the module-level gestureConfig from inside a worklet.
+  // Reanimated serializes this local plain object into the UI runtime.
+  const workletConfig = useMemo<GestureConfig>(() => {
+    const source = config ?? gestureConfig;
+
+    return {
+      distance: { ...source.distance },
+      fov: { ...source.fov },
+      gesture: { ...source.gesture },
+    };
+  }, [config]);
+
   const initial = useMemo(
-    () => validateState(initialState),
+    () => validateState(initialState, workletConfig),
     [
       initialState.minDistance,
       initialState.maxDistance,
       initialState.zoom,
       initialState.fov,
+      workletConfig,
     ],
   );
 
@@ -76,7 +94,7 @@ export function useARGestureController({
 
   const setState = useCallback(
     (nextState: GestureState): GestureState => {
-      const validated = validateState(nextState);
+      const validated = validateState(nextState, workletConfig);
 
       currentState.value = validated;
       baseState.value = validated;
@@ -89,7 +107,7 @@ export function useARGestureController({
 
       return validated;
     },
-    [activeMode, baseState, cameraZoom, currentState],
+    [activeMode, baseState, cameraZoom, currentState, workletConfig],
   );
 
   const gesture = useMemo(
@@ -154,8 +172,8 @@ export function useARGestureController({
 
           const next =
             activeMode.value === "horizontal"
-              ? updateHorizontal(baseState.value, input)
-              : updateVertical(baseState.value, input);
+              ? updateHorizontal(baseState.value, input, workletConfig)
+              : updateVertical(baseState.value, input, workletConfig);
 
           currentState.value = next.state;
 
@@ -176,7 +194,7 @@ export function useARGestureController({
             return;
           }
 
-          const finalState = snapState(currentState.value);
+          const finalState = snapState(currentState.value, workletConfig);
 
           currentState.value = finalState;
           baseState.value = finalState;
@@ -184,9 +202,9 @@ export function useARGestureController({
 
           if (cameraZoom) {
             cameraZoom.value = withSpring(finalState.zoom, {
-              stiffness: gestureConfig.gesture.springStiffness,
-              damping: gestureConfig.gesture.springDamping,
-              mass: gestureConfig.gesture.springMass,
+              stiffness: workletConfig.gesture.springStiffness,
+              damping: workletConfig.gesture.springDamping,
+              mass: workletConfig.gesture.springMass,
             });
           }
 
@@ -211,6 +229,7 @@ export function useARGestureController({
       onEnd,
       onStart,
       onUpdate,
+      workletConfig,
     ],
   );
 
