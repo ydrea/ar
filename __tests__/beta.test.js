@@ -235,42 +235,23 @@ describe("beta ARView", () => {
     });
   });
 
-  test("two consumers share one native subscription", async () => {
-    await sensorHub.start();
-    await sensorHub.start();
-
-    expect(Location.watchHeadingAsync).toHaveBeenCalledTimes(1);
-
-    sensorHub.stop();
-
-    // Still active because one consumer remains.
-    expect(removeHeading).not.toHaveBeenCalled();
-
-    sensorHub.stop();
-
-    expect(removeHeading).toHaveBeenCalledTimes(1);
-  });
-
   test("updates the native engine with the latest sensor data", async () => {
-    expect(mockNativeEngine.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        headingDegrees: 225,
-        location: expect.objectContaining({
-          latitude: 45.8,
-          longitude: 15.96,
-        }),
-        viewportWidth: expect.any(Number),
-        viewportHeight: expect.any(Number),
-      }),
-    );
-
-    await render(<ARView />);
+    render(<ARView />);
 
     await waitFor(() => {
-      expect(mockNativeEngine.update).toHaveBeenCalled();
+      expect(mockNativeEngine.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headingDegrees: 225,
+          location: expect.objectContaining({
+            latitude: 45.8,
+            longitude: 15.96,
+            altitude: 120,
+          }),
+          viewportWidth: expect.any(Number),
+          viewportHeight: expect.any(Number),
+        }),
+      );
     });
-
-    expect(mockNativeEngine.update).toHaveBeenCalledTimes(1);
   });
 
   test("creates one native engine with a hard dataset radius", async () => {

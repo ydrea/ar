@@ -1,9 +1,6 @@
 import * as Location from "expo-location";
 
-import {
-  getCompassCalibrationPercent,
-  sensorHub,
-} from "@/cumquat/sensors";
+import { getCompassCalibrationPercent, sensorHub } from "@/cumquat/sensors";
 
 type HeadingSample = {
   accuracy: number;
@@ -37,6 +34,22 @@ describe("SensorHub compass integration", () => {
 
   afterEach(() => {
     sensorHub.stop();
+  });
+
+  test("two consumers share one native subscription", async () => {
+    await sensorHub.start();
+    await sensorHub.start();
+
+    expect(Location.watchHeadingAsync).toHaveBeenCalledTimes(1);
+
+    sensorHub.stop();
+
+    // Still active because one consumer remains.
+    expect(removeHeading).not.toHaveBeenCalled();
+
+    sensorHub.stop();
+
+    expect(removeHeading).toHaveBeenCalledTimes(1);
   });
 
   test("stores true heading and calibration accuracy in the snapshot", async () => {
