@@ -1,9 +1,15 @@
 // cumquat/types.ts
+export type CompassAccuracy = 0 | 1 | 2 | 3;
+
 export type SensorSnapshot = {
   lat: number;
   lon: number;
   elevation: number;
   orientation: Quat;
+  heading: number;
+  headingAccuracy: CompassAccuracy;
+  magneticHeading: number;
+  trueHeading: number | null;
   timestamp: number;
 };
 
@@ -31,9 +37,9 @@ export type ScreenPosition = {
   x: number;
   y: number;
   visible: boolean;
-  clippedByDistance?: "min" | "max" | null; // Add this
-  depth?: number; // Add depth for debugging
-  radialDistance?: number; // Add radial distance for debugging
+  clippedByDistance?: "min" | "max" | null;
+  depth?: number;
+  radialDistance?: number;
 };
 
 export type ProjectedPOI = {
