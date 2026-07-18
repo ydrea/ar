@@ -8,6 +8,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+
+      "env": {
+        "APP_VARIANT": "development"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -15,6 +19,10 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+
+      "env": {
+        "APP_VARIANT": "preview"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -22,9 +30,11 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
+      "env": {
+        "APP_VARIANT": "production"
+      },
       "android": {
-        "buildType": "apk",
-        "withoutCredentials": true
+        "buildType": "app-bundle"
       }
     }
   },
