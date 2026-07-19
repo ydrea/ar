@@ -77,7 +77,7 @@ export default function IndexScreen() {
   const canStart = ready && permissionsReady && currentLanguage;
 
   const handleStartAR = () => {
-    router.replace("./gestbeta");
+    router.replace("./gest");
   };
 
   const getLanguageName = (langCode: string): string => {
