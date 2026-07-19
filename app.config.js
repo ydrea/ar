@@ -134,11 +134,7 @@ export default () => {
     updates: {
       url: "https://u.expo.dev/8bb1226c-4b9d-4475-8f79-c37fa641e4fb",
       fallbackToCacheTimeout: 0,
-      checkAutomatically:
-        buildProfile === "development" || buildProfile === "preview"
-          ? "ON_LOAD"
-          : "ON_ERROR_RECOVERY",
-      ...(buildProfile === "preview" && { channel: "preview" }),
+      checkAutomatically: "ON_LOAD",
     },
     runtimeVersion: {
       policy: "appVersion",
