@@ -48,3 +48,8 @@ app-example
 # generated native folders
 /ios
 /android
+
+credentials.json
+credentials/
+*.jks
+*.keystore

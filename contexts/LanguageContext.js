@@ -1,6 +1,6 @@
 //context/LanguageContext.js
 "use client";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { translate, getIslandName, getAvailableLanguages } from "./translations";
 
 const LanguageContext = createContext();
@@ -43,10 +43,6 @@ export const LanguageProvider = ({ children }) => {
     getIslandName: (islandName) => getIslandName(islandName, currentLanguage),
     getFlagEmoji,
   };
-
-  useEffect(() => {
-    console.log("Language changed to:", currentLanguage);
-  }, [currentLanguage]);
 
   return (
     <LanguageContext.Provider value={value}>

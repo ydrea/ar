@@ -8,22 +8,27 @@
     "types": ["jest", "node", "react-native"]
   },
   "include": [
-    "**/*.js",
-    "**/*.jsx",
-    "**/*.ts",
-    "**/*.tsx",
-    "metro.config.js",
-    "jest.config.js",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "__tests__/**/*.js",
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx",
+    "modules/cumquat-native/src/**/*.ts",
+    "modules/cumquat-native/specs/**/*.ts",
+    "data/**/*.ts",
+    "data/**/*.d.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "data/types/**/*.d.ts",
-    "data/binaryDataLoader.ts"
+    "jest.setup.ts",
+    "metro.config.js",
+    "jest.config.js"
   ],
   "exclude": [
     "node_modules",
     "admin",
     "BCK",
     "samples",
+    "futur_worklets",
     "modules/cumquat-native/build",
     "CALIBRATION.ts"
   ]

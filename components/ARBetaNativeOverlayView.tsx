@@ -45,7 +45,6 @@ import type {
   ViewState as NativeViewState,
 } from "@/modules/cumquat-native/src/types";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
-import { Dlog, Elog, Rlog, Tlog } from "@/utils/tlog";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 const POSITION_COMMIT_THRESHOLD_PX = 1.5;
@@ -85,7 +84,6 @@ type NativeEngine = {
 
 type NativeEngineFactory = {
   create(config?: EngineConfig): NativeEngine;
-  getNativeVersion(): string;
 };
 
 type EngineMode = "starting" | "native" | "js-fallback";
@@ -128,9 +126,8 @@ function getNativeFactory(): NativeEngineFactory | null {
       CumquatEngine: NativeEngineFactory;
     };
     cachedNativeFactory = nativePackage.CumquatEngine;
-  } catch (error) {
+  } catch {
     cachedNativeFactory = null;
-    Elog("Native Cumquat module unavailable; using JS fallback:", error);
   }
 
   return cachedNativeFactory;
@@ -440,12 +437,9 @@ export default function ARBetaNativeOverlayView() {
 
   const nativeEngineRef = useRef<NativeEngine | null>(null);
   const nativeDisabledRef = useRef(false);
-  const nativeFailureLoggedRef = useRef(false);
   const gestureStateRef = useRef<GestureState>(DEFAULT_GESTURE_STATE);
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
-  const lastLocationRef = useRef<SensorSnapshot | null>(null);
   const lastCommittedNativeFrameRef = useRef<readonly NativeProjectedPOI[]>([]);
-  const frameCountRef = useRef(0);
 
   const nativePOIs = useMemo<readonly POIInput[]>(
     () =>
@@ -483,9 +477,6 @@ export default function ARBetaNativeOverlayView() {
 
     viewportRef.current = next;
     setViewport(next);
-    Rlog(
-      `📐 AR viewport: ${next.width.toFixed(0)}x${next.height.toFixed(0)} landscape`,
-    );
   }, []);
 
   const disposeNativeEngine = useCallback(() => {
@@ -494,19 +485,11 @@ export default function ARBetaNativeOverlayView() {
     nativeEngineRef.current = null;
   }, []);
 
-  const disableNative = useCallback(
-    (error: unknown) => {
-      nativeDisabledRef.current = true;
-      disposeNativeEngine();
-      setEngineMode("js-fallback");
-
-      if (!nativeFailureLoggedRef.current) {
-        nativeFailureLoggedRef.current = true;
-        Elog("Native Cumquat failed; switching to JS fallback:", error);
-      }
-    },
-    [disposeNativeEngine],
-  );
+  const disableNative = useCallback(() => {
+    nativeDisabledRef.current = true;
+    disposeNativeEngine();
+    setEngineMode("js-fallback");
+  }, [disposeNativeEngine]);
 
   const ensureNativeEngine = useCallback((): NativeEngine | null => {
     if (nativeDisabledRef.current) return null;
@@ -524,10 +507,6 @@ export default function ARBetaNativeOverlayView() {
     engine.setViewState(toNativeViewState(gestureStateRef.current));
 
     nativeEngineRef.current = engine;
-    Dlog(
-      `⚙️ Native Cumquat initialized: ${nativePOIs.length} POIs (${factory.getNativeVersion()})`,
-    );
-
     return engine;
   }, [nativePOIs]);
 
@@ -541,8 +520,8 @@ export default function ARBetaNativeOverlayView() {
 
       try {
         engine.setViewState(toNativeViewState(state));
-      } catch (error) {
-        disableNative(error);
+      } catch {
+        disableNative();
       }
     },
     [disableNative],
@@ -591,19 +570,12 @@ export default function ARBetaNativeOverlayView() {
             );
             setProjectedPOIs(nextPOIs);
 
-            frameCountRef.current += 1;
-            if (frameCountRef.current % 10 === 1) {
-              const visible = nextPOIs.filter((poi) => poi.isVisible);
-              Tlog(
-                `⚙️ Native frame committed: ${visible.length} visible / ${nextPOIs.length} active`,
-              );
-            }
           }
 
           setEngineMode("native");
           return;
-        } catch (error) {
-          disableNative(error);
+        } catch {
+          disableNative();
         }
       }
 
@@ -677,7 +649,6 @@ export default function ARBetaNativeOverlayView() {
 
         setPOIs(loadedPOIs);
         setPOILoadError(null);
-        Dlog(`📦 Loaded ${loadedPOIs.length} POIs from binary`);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -688,7 +659,6 @@ export default function ARBetaNativeOverlayView() {
             : new Error("Unable to load POI binary");
 
         setPOILoadError(resolvedError);
-        Elog("POI binary loading failed:", resolvedError);
       });
 
     return () => {
@@ -697,10 +667,6 @@ export default function ARBetaNativeOverlayView() {
   }, []);
 
   useEffect(() => {
-    Dlog(
-      `📐 Initial landscape viewport: ${viewportRef.current.width.toFixed(0)}x${viewportRef.current.height.toFixed(0)}`,
-    );
-
     let cancelled = false;
 
     sensorHub
@@ -708,7 +674,9 @@ export default function ARBetaNativeOverlayView() {
       .then(() => {
         if (!cancelled) setIsReady(true);
       })
-      .catch((error) => Elog("SensorHub start failed:", error));
+      .catch(() => {
+        if (!cancelled) setIsReady(false);
+      });
 
     return () => {
       cancelled = true;
@@ -723,16 +691,6 @@ export default function ARBetaNativeOverlayView() {
     const interval = setInterval(() => {
       const snapshot = sensorHub.getSnapshot();
       if (snapshot.lat === 0 && snapshot.lon === 0) return;
-
-      const previous = lastLocationRef.current;
-      if (
-        !previous ||
-        Math.abs(previous.lat - snapshot.lat) > 0.000001 ||
-        Math.abs(previous.lon - snapshot.lon) > 0.000001
-      ) {
-        Dlog(`📍 Location changed: ${snapshot.lat}, ${snapshot.lon}`);
-        lastLocationRef.current = snapshot;
-      }
 
       renderSnapshot(snapshot);
     }, 100);
@@ -762,8 +720,6 @@ export default function ARBetaNativeOverlayView() {
           animatedProps={animatedProps}
           facing={cameraFacing}
           mode="video"
-          onCameraReady={() => Dlog("Camera ready")}
-          onMountError={(error: unknown) => Elog("Camera mount error:", error)}
           style={StyleSheet.absoluteFill}
         />
 
@@ -794,18 +750,6 @@ export default function ARBetaNativeOverlayView() {
             if (poi.isVisible) {
               return <VisiblePOIMarker key={poi.id} poi={poi} />;
             }
-            //////////////////////
-            // // triangles debugging
-            // if (!poi.isVisible) {
-            //   console.log("TRIANGLE", {
-            //     name: poi.name,
-            //     distance: poi.distance,
-            //     clipped: poi.screenPos.clipped,
-            //     clippedByDistance: poi.screenPos.clippedByDistance,
-            //     isOffscreen: poi.isOffscreen,
-            //   });
-            // }
-            ///////////////////////
             const kind = classifyIndicator(poi);
             if (!kind) return null;
 
@@ -864,7 +808,6 @@ export default function ARBetaNativeOverlayView() {
             onPress={() => {
               const resetState = setGestureState(DEFAULT_GESTURE_STATE);
               nativeDisabledRef.current = false;
-              nativeFailureLoggedRef.current = false;
               disposeNativeEngine();
               setEngineMode("starting");
               applyGestureState(resetState);

@@ -1,5 +1,6 @@
 export default () => {
-  const buildProfile = process.env.EAS_BUILD_PROFILE || "development";
+  const buildProfile =
+    process.env.APP_VARIANT ?? process.env.EAS_BUILD_PROFILE ?? "development";
 
   let packageName = "com.line.ar.dev";
   let appName = "AR (Dev)";
@@ -67,10 +68,6 @@ export default () => {
       adaptiveIcon: iconConfig.android.adaptiveIcon,
       predictiveBackGestureEnabled: false,
       permissions: [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -113,12 +110,12 @@ export default () => {
       [
         "expo-splash-screen",
         {
-          image: "./assets/generated/splash-android.png",
+          image: "./assets/github.png",
           imageWidth: 200,
           resizeMode: "contain",
           backgroundColor: "#dfdfdf",
           dark: {
-            image: "./assets/generated/splash-dark.png",
+            image: "./assets/github.png",
             backgroundColor: "#202020",
           },
         },
@@ -137,11 +134,7 @@ export default () => {
     updates: {
       url: "https://u.expo.dev/8bb1226c-4b9d-4475-8f79-c37fa641e4fb",
       fallbackToCacheTimeout: 0,
-      checkAutomatically:
-        buildProfile === "development" || buildProfile === "preview"
-          ? "ON_LOAD"
-          : "ON_ERROR_RECOVERY",
-      ...(buildProfile === "preview" && { channel: "preview" }),
+      checkAutomatically: "ON_LOAD",
     },
     runtimeVersion: {
       policy: "appVersion",
