@@ -56,6 +56,7 @@ export default () => {
     userInterfaceStyle: "automatic",
     ios: {
       supportsTablet: true,
+      requireFullScreen: true,
       bundleIdentifier: packageName,
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location.",
@@ -84,7 +85,12 @@ export default () => {
       "expo-audio",
       "expo-image",
       "expo-asset",
-      "expo-screen-orientation",
+      [
+        "expo-screen-orientation",
+        {
+          initialOrientation: "LANDSCAPE",
+        },
+      ],
       "expo-web-browser",
       [
         "expo-camera",
