@@ -1,6 +1,6 @@
 // hooks/useCameraZoom.ts
-import { useCallback, useRef } from "react";
-import { CameraView } from "expo-camera";
+import React, {useCallback, useRef} from "react";
+import {CameraView} from "expo-camera";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -11,7 +11,20 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-const AnimatedCamera = Animated.createAnimatedComponent(CameraView);
+const ReanimatedCamera = Animated.createAnimatedComponent(CameraView);
+type ReanimatedCameraProps = React.ComponentProps<typeof ReanimatedCamera>;
+
+// The AR screen only needs a live preview. Force picture mode even if an older
+// caller still passes mode="video", avoiding unnecessary video/audio setup.
+const AnimatedCamera = React.forwardRef<CameraView, ReanimatedCameraProps>(
+  (props, ref) =>
+    React.createElement(ReanimatedCamera as React.ComponentType<any>, {
+      ...props,
+      ref,
+      mode: "picture",
+    }),
+);
+AnimatedCamera.displayName = "ARPreviewCamera";
 
 type ZoomAnimation = "spring" | "timing";
 
