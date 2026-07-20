@@ -1,13 +1,6 @@
 import {sensorHub} from "@/cumquat/sensors";
 import type {Quat, SensorSnapshot} from "@/cumquat/types";
 
-/**
- * Expo DeviceMotion reports all axes in the phone's natural portrait frame.
- * The app is intentionally used in LeftLandscape: portrait rotated
- * counter-clockwise, with the physical Home button on the right.
- */
-export const CAMERA_SCREEN_ORIENTATION_DEGREES = -90;
-
 const IDENTITY_QUATERNION: Quat = {x: 0, y: 0, z: 0, w: 1};
 
 function normalizeQuaternion(q: Quat): Quat {
@@ -69,9 +62,10 @@ function shortestAngleDegrees(from: number, to: number): number {
 /**
  * Produces the only orientation consumed by AR.
  *
- * DeviceMotion's Android rotation vector is gravity- and magnetic-north-aware,
- * but its axes are expressed in portrait coordinates. We first rotate its
- * output frame into the active landscape screen frame.
+ * Expo DeviceMotion expresses its axes in the natural portrait frame and also
+ * reports the active screen rotation as 0, 90, 180 or -90 degrees. Rotating by
+ * that live value supports both landscape directions on Android, iPhone and
+ * iPad instead of assuming a fixed home-button side.
  *
  * Expo Location calculates true heading by adding geomagnetic declination to
  * magnetic heading. Their difference is independent of how the phone is held,
@@ -122,7 +116,7 @@ export function installNorthAlignedOrientation(): void {
       ...snapshot,
       orientation: createNorthAlignedCameraQuaternion(
         snapshot.orientation,
-        CAMERA_SCREEN_ORIENTATION_DEGREES,
+        snapshot.screenOrientationDegrees,
         snapshot.magneticHeading,
         snapshot.trueHeading,
       ),
