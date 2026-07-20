@@ -1,12 +1,12 @@
-import { useLanguage } from "@/contexts/LanguageContext";
+import {useLanguage} from "@/contexts/LanguageContext";
 import {
   getCompassCalibrationPercent,
   sensorHub,
 } from "@/cumquat/sensors";
-import type { CompassAccuracy } from "@/cumquat/types";
-import { usePermissions } from "@/hooks/usePermissions";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import type {CompassAccuracy} from "@/cumquat/types";
+import {usePermissions} from "@/hooks/usePermissions";
+import {router} from "expo-router";
+import {useCallback, useEffect, useState} from "react";
 
 import {
   ActivityIndicator,
@@ -19,7 +19,7 @@ import {
 } from "react-native";
 
 export default function IndexScreen() {
-  const { height: screenHeight } = useWindowDimensions();
+  const {height: screenHeight} = useWindowDimensions();
   const {
     currentLanguage,
     availableLanguages,
@@ -27,10 +27,10 @@ export default function IndexScreen() {
     translate,
     getFlagEmoji,
   } = useLanguage();
-
   const permissions = usePermissions();
   const [permissionsReady, setPermissionsReady] = useState(false);
   const [ready, setReady] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [heading, setHeading] = useState(0);
   const [headingAccuracy, setHeadingAccuracy] =
     useState<CompassAccuracy>(0);
@@ -38,17 +38,40 @@ export default function IndexScreen() {
   const calibrationPercent =
     getCompassCalibrationPercent(headingAccuracy);
 
+  const prepareAR = useCallback(async () => {
+    setPermissionsReady(false);
+    setReady(false);
+    setStartupError(null);
+
+    try {
+      const granted = await permissions.requestAllPermissions();
+      if (!granted) {
+        setPermissionsReady(true);
+        return false;
+      }
+
+      await sensorHub.start();
+      setPermissionsReady(true);
+      setReady(true);
+      return true;
+    } catch (error: unknown) {
+      setStartupError(
+        error instanceof Error ? error.message : "Unable to start AR sensors.",
+      );
+      setPermissionsReady(true);
+      setReady(false);
+      return false;
+    }
+  }, [permissions.requestAllPermissions]);
+
   useEffect(() => {
     let mounted = true;
     let snapshotInterval: ReturnType<typeof setInterval> | null = null;
 
     const init = async () => {
-      const granted = await permissions.requestAllPermissions();
-      if (!granted || !mounted) return;
-
-      await sensorHub.start();
-      if (!mounted) {
-        sensorHub.stop();
+      const started = await prepareAR();
+      if (!started || !mounted) {
+        if (!mounted && started) sensorHub.stop();
         return;
       }
 
@@ -60,9 +83,6 @@ export default function IndexScreen() {
 
       updateCompassState();
       snapshotInterval = setInterval(updateCompassState, 100);
-
-      setPermissionsReady(true);
-      setReady(true);
     };
 
     void init();
@@ -74,10 +94,18 @@ export default function IndexScreen() {
     };
   }, []);
 
-  const canStart = ready && permissionsReady && currentLanguage;
+  const canStart =
+    ready &&
+    permissionsReady &&
+    permissions.allGranted &&
+    Boolean(currentLanguage);
 
   const handleStartAR = () => {
     router.replace("./gest");
+  };
+
+  const handleRetry = () => {
+    void prepareAR();
   };
 
   const getLanguageName = (langCode: string): string => {
@@ -92,6 +120,9 @@ export default function IndexScreen() {
     return languageMap[langCode] ?? langCode.toUpperCase();
   };
 
+  const showPermissionProblem =
+    permissionsReady && (!permissions.allGranted || startupError !== null);
+
   return (
     <View style={styles.container}>
       <View style={styles.textGroup}>
@@ -100,21 +131,45 @@ export default function IndexScreen() {
           {heading.toFixed(0)}°)
         </Text>
 
-        {headingAccuracy < 2 ? (
+        {ready && headingAccuracy < 2 ? (
           <Text style={styles.calibrationHint}>
             Move the phone in a figure eight
           </Text>
         ) : null}
       </View>
 
-      {!ready && <ActivityIndicator size="large" color="#ff4412" />}
+      {!permissionsReady && (
+        <ActivityIndicator size="large" color="#ff4412" />
+      )}
 
-      {ready && (
+      {showPermissionProblem ? (
+        <View style={styles.permissionPanel}>
+          <Text style={styles.permissionTitle}>AR setup required</Text>
+          <Text style={styles.permissionText}>
+            {startupError ??
+              `Missing: ${permissions.missingPermissions.join(", ") || "Unknown permission"}`}
+          </Text>
+
+          <View style={styles.permissionActions}>
+            <TouchableOpacity style={styles.permissionButton} onPress={handleRetry}>
+              <Text style={styles.permissionButtonText}>Try again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.permissionButton, styles.settingsButton]}
+              onPress={permissions.openSettings}
+            >
+              <Text style={styles.permissionButtonText}>Open settings</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {ready && permissions.allGranted && (
         <View style={styles.readyContainer}>
           <Text style={styles.sectionTitle}>{translate("selectLanguage")}</Text>
 
           <View
-            style={[styles.scrollContainer, { maxHeight: screenHeight * 0.4 }]}
+            style={[styles.scrollContainer, {maxHeight: screenHeight * 0.4}]}
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
@@ -186,6 +241,50 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: "rgba(255,255,255,0.65)",
     fontSize: 12,
+  },
+
+  permissionPanel: {
+    width: "80%",
+    maxWidth: 520,
+    alignItems: "center",
+    gap: 12,
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: "#171717",
+  },
+
+  permissionTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+
+  permissionText: {
+    color: "rgba(255,255,255,0.72)",
+    textAlign: "center",
+  },
+
+  permissionActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  permissionButton: {
+    minWidth: 120,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 9,
+    backgroundColor: "#666aaa",
+  },
+
+  settingsButton: {
+    backgroundColor: "#444",
+  },
+
+  permissionButtonText: {
+    color: "white",
+    fontWeight: "600",
   },
 
   readyContainer: {
