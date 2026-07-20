@@ -569,7 +569,6 @@ export default function ARBetaNativeOverlayView() {
               mapNativePOI(nativePOI, pois),
             );
             setProjectedPOIs(nextPOIs);
-
           }
 
           setEngineMode("native");
@@ -963,5 +962,6 @@ const styles = StyleSheet.create({
   controlButtonText: {
     fontSize: 24,
     color: "white",
+    display: "none",
   },
 });
