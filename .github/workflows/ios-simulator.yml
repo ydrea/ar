@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - iOS
+      - iOSprod
   pull_request:
     branches:
       - iOS
+      - iOSprod
   workflow_dispatch:
 
 permissions:
@@ -38,6 +40,9 @@ jobs:
 
       - name: Install JavaScript dependencies
         run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
 
       - name: Run tests
         run: npm test -- --runInBand
