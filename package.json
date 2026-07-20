@@ -65,6 +65,11 @@
     "jsSrcsDir": "modules/cumquat-native/specs",
     "android": {
       "javaPackageName": "com.cumquat.nativeengine"
+    },
+    "ios": {
+      "modulesProvider": {
+        "NativeCumquat": "NativeCumquatModuleProvider"
+      }
     }
   },
   "private": true
