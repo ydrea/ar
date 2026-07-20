@@ -80,19 +80,21 @@ jest.mock("expo-sensors", () => ({
   },
 }));
 
-const preciseLocationPermission = {
-  status: "granted",
-  ios: {accuracy: "full", scope: "whenInUse"},
-};
+jest.mock("expo-location", () => {
+  const preciseLocationPermission = {
+    status: "granted",
+    ios: {accuracy: "full", scope: "whenInUse"},
+  };
 
-jest.mock("expo-location", () => ({
-  getForegroundPermissionsAsync: jest
-    .fn()
-    .mockResolvedValue(preciseLocationPermission),
-  requestForegroundPermissionsAsync: jest
-    .fn()
-    .mockResolvedValue(preciseLocationPermission),
-  watchPositionAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
-  watchHeadingAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
-  Accuracy: {BestForNavigation: 1},
-}));
+  return {
+    getForegroundPermissionsAsync: jest
+      .fn()
+      .mockResolvedValue(preciseLocationPermission),
+    requestForegroundPermissionsAsync: jest
+      .fn()
+      .mockResolvedValue(preciseLocationPermission),
+    watchPositionAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
+    watchHeadingAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
+    Accuracy: {BestForNavigation: 1},
+  };
+});
