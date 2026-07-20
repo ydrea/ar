@@ -65,34 +65,31 @@ export default function IndexScreen() {
   }, [permissions.requestAllPermissions]);
 
   useEffect(() => {
-    let mounted = true;
-    let snapshotInterval: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
 
-    const init = async () => {
-      const started = await prepareAR();
-      if (!started || !mounted) {
-        if (!mounted && started) sensorHub.stop();
-        return;
-      }
-
-      const updateCompassState = () => {
-        const snapshot = sensorHub.getSnapshot();
-        setHeading(snapshot.heading);
-        setHeadingAccuracy(snapshot.headingAccuracy);
-      };
-
-      updateCompassState();
-      snapshotInterval = setInterval(updateCompassState, 100);
-    };
-
-    void init();
+    void prepareAR().then((started) => {
+      if (cancelled && started) sensorHub.stop();
+    });
 
     return () => {
-      mounted = false;
-      if (snapshotInterval) clearInterval(snapshotInterval);
+      cancelled = true;
       sensorHub.stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const updateCompassState = () => {
+      const snapshot = sensorHub.getSnapshot();
+      setHeading(snapshot.heading);
+      setHeadingAccuracy(snapshot.headingAccuracy);
+    };
+
+    updateCompassState();
+    const snapshotInterval = setInterval(updateCompassState, 100);
+    return () => clearInterval(snapshotInterval);
+  }, [ready]);
 
   const canStart =
     ready &&
@@ -226,23 +223,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#010101",
     gap: 15,
   },
-
   textGroup: {
     alignItems: "center",
     marginBottom: 20,
   },
-
   calibrationText: {
     color: "white",
     fontSize: 16,
   },
-
   calibrationHint: {
     marginTop: 6,
     color: "rgba(255,255,255,0.65)",
     fontSize: 12,
   },
-
   permissionPanel: {
     width: "80%",
     maxWidth: 520,
@@ -252,23 +245,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#171717",
   },
-
   permissionTitle: {
     color: "white",
     fontSize: 18,
     fontWeight: "700",
   },
-
   permissionText: {
     color: "rgba(255,255,255,0.72)",
     textAlign: "center",
   },
-
   permissionActions: {
     flexDirection: "row",
     gap: 12,
   },
-
   permissionButton: {
     minWidth: 120,
     alignItems: "center",
@@ -277,34 +266,28 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: "#666aaa",
   },
-
   settingsButton: {
     backgroundColor: "#444",
   },
-
   permissionButtonText: {
     color: "white",
     fontWeight: "600",
   },
-
   readyContainer: {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
-
   sectionTitle: {
     color: "white",
     marginBottom: 6,
     fontSize: 12,
     fontWeight: "600",
   },
-
   scrollContainer: {
     width: "100%",
     marginBottom: 4,
   },
-
   scrollContent: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -312,7 +295,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
   },
-
   languageButton: {
     width: "14%",
     padding: 4,
@@ -321,17 +303,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   flagText: {
     fontSize: 18,
     marginRight: 8,
   },
-
   languageText: {
     color: "white",
     fontSize: 14,
   },
-
   startButton: {
     marginTop: 20,
     width: "80%",
@@ -340,7 +319,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-
   startButtonText: {
     color: "white",
     fontWeight: "600",
