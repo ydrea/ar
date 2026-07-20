@@ -1,6 +1,11 @@
 import * as Location from "expo-location";
+import {DeviceMotion} from "expo-sensors";
 
-import { getCompassCalibrationPercent, sensorHub } from "@/cumquat/sensors";
+import {
+  getCompassCalibrationPercent,
+  SensorStartError,
+  sensorHub,
+} from "@/cumquat/sensors";
 
 type HeadingSample = {
   accuracy: number;
@@ -8,18 +13,44 @@ type HeadingSample = {
   trueHeading: number;
 };
 
+type MotionSample = {
+  orientation: number;
+  rotation: {
+    qx: number;
+    qy: number;
+    qz: number;
+    qw: number;
+  };
+};
+
 describe("SensorHub compass integration", () => {
   const location = Location as jest.Mocked<typeof Location>;
+  const deviceMotion = DeviceMotion as jest.Mocked<typeof DeviceMotion>;
   let emitHeading: ((sample: HeadingSample) => void) | null;
+  let emitMotion: ((sample: MotionSample) => void) | null;
   let removeHeading: jest.Mock;
+  let removeMotion: jest.Mock;
 
   beforeEach(() => {
     sensorHub.stop();
+    jest.clearAllMocks();
     emitHeading = null;
+    emitMotion = null;
     removeHeading = jest.fn();
+    removeMotion = jest.fn();
+
+    deviceMotion.isAvailableAsync.mockResolvedValue(true);
+    deviceMotion.getPermissionsAsync.mockResolvedValue({
+      status: "granted",
+    } as Awaited<ReturnType<typeof DeviceMotion.getPermissionsAsync>>);
+    deviceMotion.addListener.mockImplementation((callback) => {
+      emitMotion = callback as unknown as (sample: MotionSample) => void;
+      return {remove: removeMotion};
+    });
 
     location.getForegroundPermissionsAsync.mockResolvedValue({
       status: "granted",
+      ios: {accuracy: "full", scope: "whenInUse"},
     } as Awaited<ReturnType<typeof Location.getForegroundPermissionsAsync>>);
 
     location.watchPositionAsync.mockResolvedValue({
@@ -28,7 +59,7 @@ describe("SensorHub compass integration", () => {
 
     location.watchHeadingAsync.mockImplementation(async (callback) => {
       emitHeading = callback as (sample: HeadingSample) => void;
-      return { remove: removeHeading };
+      return {remove: removeHeading};
     });
   });
 
@@ -41,15 +72,17 @@ describe("SensorHub compass integration", () => {
     await sensorHub.start();
 
     expect(Location.watchHeadingAsync).toHaveBeenCalledTimes(1);
+    expect(DeviceMotion.addListener).toHaveBeenCalledTimes(1);
 
     sensorHub.stop();
 
-    // Still active because one consumer remains.
     expect(removeHeading).not.toHaveBeenCalled();
+    expect(removeMotion).not.toHaveBeenCalled();
 
     sensorHub.stop();
 
     expect(removeHeading).toHaveBeenCalledTimes(1);
+    expect(removeMotion).toHaveBeenCalledTimes(1);
   });
 
   test("stores true heading and calibration accuracy in the snapshot", async () => {
@@ -74,6 +107,33 @@ describe("SensorHub compass integration", () => {
     expect(getCompassCalibrationPercent(2)).toBe(67);
   });
 
+  test("stores the live DeviceMotion screen orientation", async () => {
+    await sensorHub.start();
+
+    emitMotion?.({
+      orientation: 90,
+      rotation: {qx: 0, qy: 0, qz: 0, qw: 1},
+    });
+
+    expect(sensorHub.getSnapshot()).toMatchObject({
+      screenOrientationDegrees: 90,
+      orientation: {x: 0, y: 0, z: 0, w: 1},
+    });
+  });
+
+  test("rejects startup when device motion is unavailable", async () => {
+    deviceMotion.isAvailableAsync.mockResolvedValue(false);
+
+    await expect(sensorHub.start()).rejects.toEqual(
+      expect.objectContaining<Partial<SensorStartError>>({
+        code: "motion-unavailable",
+      }),
+    );
+
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+    expect(Location.watchHeadingAsync).not.toHaveBeenCalled();
+  });
+
   test("falls back to magnetic heading when true heading is unavailable", async () => {
     await sensorHub.start();
 
@@ -96,6 +156,7 @@ describe("SensorHub compass integration", () => {
     sensorHub.stop();
 
     expect(removeHeading).toHaveBeenCalledTimes(1);
+    expect(removeMotion).toHaveBeenCalledTimes(1);
   });
 
   test.each([
