@@ -10,7 +10,6 @@ jest.mock("@/cumquat/sensors", () => ({
 
 import {sensorHub} from "@/cumquat/sensors";
 import {
-  CAMERA_SCREEN_ORIENTATION_DEGREES,
   createNorthAlignedCameraQuaternion,
   installNorthAlignedOrientation,
 } from "@/cumquat/northAlignedOrientation";
@@ -20,6 +19,7 @@ const rawSnapshot: SensorSnapshot = {
   lon: 15.96,
   elevation: 120,
   orientation: {x: 0, y: 0, z: 0, w: 1},
+  screenOrientationDegrees: -90,
   heading: 0,
   headingAccuracy: 3,
   magneticHeading: 350,
@@ -57,20 +57,32 @@ describe("north-aligned camera quaternion", () => {
     });
   });
 
-  test("uses Expo LeftLandscape for home-button-right orientation", () => {
-    expect(CAMERA_SCREEN_ORIENTATION_DEGREES).toBe(-90);
-
+  test("uses live left-landscape orientation", () => {
     const orientation = createNorthAlignedCameraQuaternion(
       {x: 0, y: 0, z: 0, w: 1},
-      CAMERA_SCREEN_ORIENTATION_DEGREES,
+      -90,
       0,
       null,
     );
 
-    // In home-button-right landscape, portrait +X becomes screen +Y.
     expectVectorClose(rotateVector({x: 1, y: 0, z: 0}, orientation), {
       x: 0,
       y: 1,
+      z: 0,
+    });
+  });
+
+  test("uses live right-landscape orientation", () => {
+    const orientation = createNorthAlignedCameraQuaternion(
+      {x: 0, y: 0, z: 0, w: 1},
+      90,
+      0,
+      null,
+    );
+
+    expectVectorClose(rotateVector({x: 1, y: 0, z: 0}, orientation), {
+      x: 0,
+      y: -1,
       z: 0,
     });
   });
@@ -136,13 +148,13 @@ describe("north-aligned camera quaternion", () => {
     ).toBeCloseTo(1, 12);
   });
 
-  test("installs fusion at the SensorHub snapshot boundary", () => {
+  test("installs fusion using the snapshot screen orientation", () => {
     installNorthAlignedOrientation();
 
     const snapshot = sensorHub.getSnapshot();
     const expected = createNorthAlignedCameraQuaternion(
       rawSnapshot.orientation,
-      CAMERA_SCREEN_ORIENTATION_DEGREES,
+      rawSnapshot.screenOrientationDegrees,
       rawSnapshot.magneticHeading,
       rawSnapshot.trueHeading,
     );
