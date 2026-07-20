@@ -1,14 +1,37 @@
 // sensors.ts - sensor hub and math utilities for Cumquat AR
 import {DeviceMotion} from "expo-sensors";
 import * as Location from "expo-location";
+import {Platform} from "react-native";
 
 import {AR_CONSTANTS} from "@/cumquat/constants";
 
 import {nativeProjectionDebug} from "./nativeProjectionDebug";
-import type {Quat, ScreenPosition, SensorSnapshot, Vec3} from "./types";
+import type {
+  DeviceScreenOrientationDegrees,
+  Quat,
+  ScreenPosition,
+  SensorSnapshot,
+  Vec3,
+} from "./types";
 
 const {DEG2RAD, RAD2DEG, WGS84_F, WGS84_A} = AR_CONSTANTS;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
+
+export type SensorStartErrorCode =
+  | "motion-unavailable"
+  | "motion-permission-denied"
+  | "location-permission-denied"
+  | "precise-location-required";
+
+export class SensorStartError extends Error {
+  readonly code: SensorStartErrorCode;
+
+  constructor(code: SensorStartErrorCode, message: string) {
+    super(message);
+    this.name = "SensorStartError";
+    this.code = code;
+  }
+}
 
 function normalizeHeading(degrees: number): number {
   if (!Number.isFinite(degrees)) return 0;
@@ -18,6 +41,19 @@ function normalizeHeading(degrees: number): number {
 function normalizeHeadingAccuracy(value: number): 0 | 1 | 2 | 3 {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(3, Math.round(value))) as 0 | 1 | 2 | 3;
+}
+
+function normalizeScreenOrientation(
+  value: number,
+): DeviceScreenOrientationDegrees {
+  if (value === 90 || value === 180 || value === -90) return value;
+  return 0;
+}
+
+function hasPreciseLocation(
+  permission: Location.LocationPermissionResponse,
+): boolean {
+  return Platform.OS !== "ios" || permission.ios?.accuracy !== "reduced";
 }
 
 function getCompassCalibrationPercent(accuracy: number): number {
@@ -64,6 +100,7 @@ class SensorHub {
     lon: 0,
     elevation: 0,
     orientation: {x: 0, y: 0, z: 0, w: 1},
+    screenOrientationDegrees: 0,
     heading: 0,
     headingAccuracy: 0,
     magneticHeading: 0,
@@ -80,17 +117,16 @@ class SensorHub {
   async start(): Promise<void> {
     this.consumerCount += 1;
 
-    if (this.startPromise) return this.startPromise;
-
-    this.startPromise = this.startSensors();
-
-    try {
-      await this.startPromise;
-    } catch (error) {
-      this.consumerCount = Math.max(0, this.consumerCount - 1);
-      this.startPromise = null;
-      throw error;
+    if (!this.startPromise) {
+      this.startPromise = this.startSensors().catch((error: unknown) => {
+        this.consumerCount = 0;
+        this.cleanupSubscriptions();
+        this.startPromise = null;
+        throw error;
+      });
     }
+
+    return this.startPromise;
   }
 
   private async startSensors(): Promise<void> {
@@ -115,27 +151,51 @@ class SensorHub {
 
     if (this.consumerCount > 0) return;
 
+    this.cleanupSubscriptions();
+    this.startPromise = null;
+  }
+
+  private cleanupSubscriptions(): void {
     this.deviceMotionSub?.remove();
     this.locationWatch?.remove();
     this.headingWatch?.remove();
     this.deviceMotionSub = null;
     this.locationWatch = null;
     this.headingWatch = null;
-    this.startPromise = null;
     nativeProjectionDebug.dispose();
   }
 
   private async startDeviceMotion(): Promise<void> {
     if (this.deviceMotionSub) return;
 
-    const permission = await DeviceMotion.requestPermissionsAsync();
+    const available = await DeviceMotion.isAvailableAsync();
+    if (!available) {
+      throw new SensorStartError(
+        "motion-unavailable",
+        "Device motion is not available on this device.",
+      );
+    }
+
+    const currentPermission = await DeviceMotion.getPermissionsAsync();
+    const permission =
+      currentPermission.status === "granted"
+        ? currentPermission
+        : await DeviceMotion.requestPermissionsAsync();
+
     if (permission.status !== "granted") {
-      return;
+      throw new SensorStartError(
+        "motion-permission-denied",
+        "Motion permission is required for the AR experience.",
+      );
     }
 
     DeviceMotion.setUpdateInterval(16);
 
     this.deviceMotionSub = DeviceMotion.addListener((motion) => {
+      this.snapshot.screenOrientationDegrees = normalizeScreenOrientation(
+        motion.orientation,
+      );
+
       if (!motion.rotation) return;
 
       const rot = motion.rotation as unknown as {
@@ -188,19 +248,33 @@ class SensorHub {
     });
   }
 
-  private async ensureLocationPermission(): Promise<boolean> {
-    const current = await Location.getForegroundPermissionsAsync();
-    if (current.status === "granted") return true;
+  private async ensureLocationPermission(): Promise<Location.LocationPermissionResponse> {
+    let permission = await Location.getForegroundPermissionsAsync();
 
-    const requested = await Location.requestForegroundPermissionsAsync();
-    return requested.status === "granted";
+    if (permission.status !== "granted") {
+      permission = await Location.requestForegroundPermissionsAsync();
+    }
+
+    if (permission.status !== "granted") {
+      throw new SensorStartError(
+        "location-permission-denied",
+        "Location permission is required for the AR experience.",
+      );
+    }
+
+    if (!hasPreciseLocation(permission)) {
+      throw new SensorStartError(
+        "precise-location-required",
+        "Precise location must be enabled for accurate AR placement.",
+      );
+    }
+
+    return permission;
   }
 
   private async startLocation(): Promise<void> {
     if (this.locationWatch) return;
-    if (!(await this.ensureLocationPermission())) {
-      return;
-    }
+    await this.ensureLocationPermission();
 
     this.locationWatch = await Location.watchPositionAsync(
       {
@@ -219,7 +293,7 @@ class SensorHub {
 
   private async startHeading(): Promise<void> {
     if (this.headingWatch) return;
-    if (!(await this.ensureLocationPermission())) return;
+    await this.ensureLocationPermission();
 
     try {
       this.headingWatch = await Location.watchHeadingAsync((reading) => {
