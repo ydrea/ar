@@ -1,11 +1,14 @@
 // cumquat/types.ts
 export type CompassAccuracy = 0 | 1 | 2 | 3;
 
+export type DeviceScreenOrientationDegrees = 0 | 90 | 180 | -90;
+
 export type SensorSnapshot = {
   lat: number;
   lon: number;
   elevation: number;
   orientation: Quat;
+  screenOrientationDegrees: DeviceScreenOrientationDegrees;
   heading: number;
   headingAccuracy: CompassAccuracy;
   magneticHeading: number;
