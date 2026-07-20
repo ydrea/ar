@@ -46,6 +46,9 @@ export default () => {
     };
   }
 
+  const iosBundleIdentifier =
+    process.env.IOS_BUNDLE_IDENTIFIER ?? packageName;
+
   return {
     name: appName,
     slug: "ar",
@@ -57,7 +60,7 @@ export default () => {
     ios: {
       supportsTablet: true,
       requireFullScreen: true,
-      bundleIdentifier: packageName,
+      bundleIdentifier: iosBundleIdentifier,
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location.",
         NSMotionUsageDescription:
