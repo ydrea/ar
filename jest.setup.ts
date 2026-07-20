@@ -10,13 +10,13 @@ jest.mock("react-native-reanimated", () => {
 
   const createAnimatedComponent = (Component: any) =>
     React.forwardRef((props: any, ref: any) =>
-      React.createElement(Component, { ...props, ref }),
+      React.createElement(Component, {...props, ref}),
     );
 
-  const useSharedValue = <T>(initialValue: T) => ({ value: initialValue });
+  const useSharedValue = <T>(initialValue: T) => ({value: initialValue});
   const useAnimatedProps = (updater: () => Record<string, unknown>) =>
     updater();
-  const useDerivedValue = <T>(updater: () => T) => ({ value: updater() });
+  const useDerivedValue = <T>(updater: () => T) => ({value: updater()});
   const runOnJS = (fn: (...args: any[]) => any) => fn;
   const runOnUI = (fn: (...args: any[]) => any) => fn;
   const cancelAnimation = jest.fn();
@@ -72,20 +72,27 @@ jest.mock("expo-camera", () => ({
 
 jest.mock("expo-sensors", () => ({
   DeviceMotion: {
-    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: "granted" }),
+    isAvailableAsync: jest.fn().mockResolvedValue(true),
+    getPermissionsAsync: jest.fn().mockResolvedValue({status: "granted"}),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({status: "granted"}),
     setUpdateInterval: jest.fn(),
-    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    addListener: jest.fn(() => ({remove: jest.fn()})),
   },
 }));
+
+const preciseLocationPermission = {
+  status: "granted",
+  ios: {accuracy: "full", scope: "whenInUse"},
+};
 
 jest.mock("expo-location", () => ({
   getForegroundPermissionsAsync: jest
     .fn()
-    .mockResolvedValue({ status: "granted" }),
+    .mockResolvedValue(preciseLocationPermission),
   requestForegroundPermissionsAsync: jest
     .fn()
-    .mockResolvedValue({ status: "granted" }),
-  watchPositionAsync: jest.fn().mockResolvedValue({ remove: jest.fn() }),
-  watchHeadingAsync: jest.fn().mockResolvedValue({ remove: jest.fn() }),
-  Accuracy: { BestForNavigation: 1 },
+    .mockResolvedValue(preciseLocationPermission),
+  watchPositionAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
+  watchHeadingAsync: jest.fn().mockResolvedValue({remove: jest.fn()}),
+  Accuracy: {BestForNavigation: 1},
 }));
