@@ -48,6 +48,7 @@ export default () => {
 
   const iosBundleIdentifier =
     process.env.IOS_BUNDLE_IDENTIFIER ?? packageName;
+  const iosAppleTeamId = process.env.IOS_APPLE_TEAM_ID;
 
   return {
     name: appName,
@@ -61,6 +62,7 @@ export default () => {
       supportsTablet: true,
       requireFullScreen: true,
       bundleIdentifier: iosBundleIdentifier,
+      ...(iosAppleTeamId ? {appleTeamId: iosAppleTeamId} : {}),
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location.",
         NSMotionUsageDescription:
