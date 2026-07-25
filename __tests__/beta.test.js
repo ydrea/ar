@@ -69,7 +69,7 @@ const mockNativeEngineFactory = {
   getNativeVersion: jest.fn(() => "test-cpp"),
 };
 
-jest.mock("@/modules/cumquat-native/src", () => ({
+jest.mock("react-native-cumquat", () => ({
   CumquatEngine: mockNativeEngineFactory,
 }));
 

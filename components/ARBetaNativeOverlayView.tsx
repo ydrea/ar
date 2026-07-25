@@ -43,7 +43,7 @@ import type {
   ProjectedPOI as NativeProjectedPOI,
   SensorState,
   ViewState as NativeViewState,
-} from "@/modules/cumquat-native/src/types";
+} from "react-native-cumquat";
 import { RubberBandVisualFeedback } from "@/ui/RubberBandVisualFeedback";
 
 const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
@@ -122,7 +122,7 @@ function getNativeFactory(): NativeEngineFactory | null {
   if (cachedNativeFactory !== undefined) return cachedNativeFactory;
 
   try {
-    const nativePackage = require("@/modules/cumquat-native/src") as {
+    const nativePackage = require("react-native-cumquat") as {
       CumquatEngine: NativeEngineFactory;
     };
     cachedNativeFactory = nativePackage.CumquatEngine;
