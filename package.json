@@ -60,18 +60,5 @@
     "test": "jest",
     "test:watch": "jest --watch"
   },
-  "codegenConfig": {
-    "name": "NativeCumquatSpec",
-    "type": "modules",
-    "jsSrcsDir": "modules/cumquat-native/specs",
-    "android": {
-      "javaPackageName": "com.cumquat.nativeengine"
-    },
-    "ios": {
-      "modulesProvider": {
-        "NativeCumquat": "NativeCumquatModuleProvider"
-      }
-    }
-  },
   "private": true
 }
