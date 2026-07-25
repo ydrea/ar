@@ -1,8 +1,8 @@
+import { gestureConfig } from '../src/config';
 import {
   applyRubberBandValue,
   clamp,
   createGestureInput,
-  gestureConfig,
   getLimitExcess,
   normalizeState,
   rubberBandResistance,
@@ -10,8 +10,8 @@ import {
   updateHorizontal,
   updateVertical,
   validateState,
-} from '../src';
-import type { GestureConfig, GestureState } from '../src';
+} from '../src/gestureMath';
+import type { GestureConfig, GestureState } from '../src/types';
 
 const state = (
   overrides: Partial<GestureState> = {}
