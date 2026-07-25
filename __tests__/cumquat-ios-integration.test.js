@@ -7,47 +7,67 @@ function read(relativePath) {
   return fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
 }
 
-describe('Cumquat iOS native integration', () => {
-  test('registers the Objective-C++ provider with React Native Codegen', () => {
-    const packageJson = JSON.parse(read('package.json'));
+function readJson(relativePath) {
+  return JSON.parse(read(relativePath));
+}
 
-    expect(packageJson.codegenConfig.ios.modulesProvider).toEqual({
-      NativeCumquat: 'NativeCumquatModuleProvider',
+function getCumquatPackageRoot() {
+  return path.dirname(require.resolve('react-native-cumquat/package.json'));
+}
+
+describe('Cumquat package native integration', () => {
+  test('delegates native Codegen and autolinking to react-native-cumquat', () => {
+    const appPackageJson = readJson('package.json');
+    const appConfig = read('app.config.js');
+
+    expect(appPackageJson.dependencies['react-native-cumquat']).toBeDefined();
+    expect(appPackageJson.codegenConfig).toBeUndefined();
+    expect(appConfig).not.toContain('./plugins/withCumquatNative');
+    expect(
+      fs.existsSync(path.join(projectRoot, 'plugins/withCumquatNative.js')),
+    ).toBe(false);
+  });
+
+  test('ships package-owned React Native Codegen configuration', () => {
+    const packageRoot = getCumquatPackageRoot();
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+    );
+
+    expect(packageJson.codegenConfig).toMatchObject({
+      name: 'CumquatSpec',
+      type: 'modules',
+      jsSrcsDir: 'src',
+      includesGeneratedCode: true,
+      android: {
+        javaPackageName: 'com.cumquat',
+      },
     });
   });
 
-  test('compiles the shared C++ implementation as a C++20 CocoaPod', () => {
-    const podspec = read('modules/cumquat-native/CumquatNative.podspec');
+  test('compiles the package C++ implementation as a C++20 CocoaPod', () => {
+    const packageRoot = getCumquatPackageRoot();
+    const podspec = fs.readFileSync(
+      path.join(packageRoot, 'Cumquat.podspec'),
+      'utf8',
+    );
 
-    expect(podspec).toContain('"cpp/**/*.{h,cpp}"');
-    expect(podspec).toContain('"ios/**/*.{h,m,mm}"');
+    expect(podspec).toContain('"cpp/**/*.{hpp,cpp,c,h}"');
+    expect(podspec).toContain('"ios/generated/*.{h,cpp,mm}"');
     expect(podspec).toContain(
       '"CLANG_CXX_LANGUAGE_STANDARD" => "c++20"',
     );
     expect(podspec).toContain('install_modules_dependencies(s)');
   });
 
-  test('provides the generated TurboModule through Objective-C++', () => {
-    const providerHeader = read(
-      'modules/cumquat-native/ios/NativeCumquatModuleProvider.h',
-    );
-    const providerImplementation = read(
-      'modules/cumquat-native/ios/NativeCumquatModuleProvider.mm',
+  test('registers the pure C++ TurboModule from the package', () => {
+    const packageRoot = getCumquatPackageRoot();
+    const onLoad = fs.readFileSync(
+      path.join(packageRoot, 'ios/OnLoad.mm'),
+      'utf8',
     );
 
-    expect(providerHeader).toContain('<RCTModuleProvider>');
-    expect(providerImplementation).toContain(
-      'std::make_shared<facebook::react::NativeCumquatModule>',
-    );
-    expect(providerImplementation).toContain('params.jsInvoker');
-  });
-
-  test('adds the local pod during Expo prebuild', () => {
-    const plugin = read('plugins/withCumquatNative.js');
-
-    expect(plugin).toContain('withPodfile');
-    expect(plugin).toContain(
-      "pod 'CumquatNative', :path => '../modules/cumquat-native'",
-    );
+    expect(onLoad).toContain('registerCxxModuleToGlobalModuleMap');
+    expect(onLoad).toContain('std::make_shared<CumquatImpl>');
   });
 });
