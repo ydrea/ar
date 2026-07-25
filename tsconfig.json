@@ -2,29 +2,23 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     },
     "types": ["jest", "node", "react-native"]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "__tests__/**/*.js",
-    "__tests__/**/*.ts",
-    "__tests__/**/*.tsx",
-    "modules/cumquat-native/src/**/*.ts",
-    "modules/cumquat-native/specs/**/*.ts",
-    "data/**/*.ts",
-    "data/**/*.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "jest.setup.ts",
-    "metro.config.js",
-    "jest.config.js"
+    "expo-env.d.ts"
   ],
   "exclude": [
     "node_modules",
+    "android",
+    "ios",
     "admin",
     "BCK",
     "samples",
