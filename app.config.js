@@ -46,8 +46,7 @@ export default () => {
     };
   }
 
-  const iosBundleIdentifier =
-    process.env.IOS_BUNDLE_IDENTIFIER ?? packageName;
+  const iosBundleIdentifier = process.env.IOS_BUNDLE_IDENTIFIER ?? packageName;
   const iosAppleTeamId = process.env.IOS_APPLE_TEAM_ID;
 
   return {
@@ -62,7 +61,7 @@ export default () => {
       supportsTablet: true,
       requireFullScreen: true,
       bundleIdentifier: iosBundleIdentifier,
-      ...(iosAppleTeamId ? {appleTeamId: iosAppleTeamId} : {}),
+      ...(iosAppleTeamId ? { appleTeamId: iosAppleTeamId } : {}),
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location.",
         NSMotionUsageDescription:
@@ -121,7 +120,7 @@ export default () => {
         "expo-splash-screen",
         {
           image: "./assets/github.png",
-          imageWidth: 200,
+          imageWidth: 400,
           resizeMode: "contain",
           backgroundColor: "#dfdfdf",
           dark: {
