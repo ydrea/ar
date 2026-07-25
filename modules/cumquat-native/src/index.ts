@@ -1,10 +1,7 @@
-import NativeCumquat from './NativeCumquat';
-
-export {CumquatEngine} from './CumquatEngine';
-
-export function getCumquatNativeVersion(): string {
-  return NativeCumquat.getVersion();
-}
+export {
+  CumquatEngine,
+  getCumquatNativeVersion,
+} from "react-native-cumquat";
 
 export type {
   EngineConfig,
@@ -17,4 +14,4 @@ export type {
   SensorState,
   ViewState,
   VisiblePOI,
-} from './types';
+} from "react-native-cumquat";
