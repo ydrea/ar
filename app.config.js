@@ -85,7 +85,6 @@ export default () => {
       favicon: "./assets/images/favicon.png",
     },
     plugins: [
-      "./plugins/withCumquatNative",
       "expo-router",
       "expo-audio",
       "expo-image",
