@@ -243,7 +243,7 @@ class SensorHub {
         return;
       }
 
-      this.snapshot.orientation = orientation;
+      this.snapshot.orientation = inverse(orientation);
       this.snapshot.timestamp = Date.now();
     });
   }
