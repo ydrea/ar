@@ -1,11 +1,11 @@
 // sensors.ts - sensor hub and math utilities for Cumquat AR
-import {DeviceMotion} from "expo-sensors";
+import { DeviceMotion } from "expo-sensors";
 import * as Location from "expo-location";
-import {Platform} from "react-native";
+import { Platform } from "react-native";
 
-import {AR_CONSTANTS} from "@/cumquat/constants";
+import { AR_CONSTANTS } from "@/cumquat/constants";
 
-import {nativeProjectionDebug} from "./nativeProjectionDebug";
+import { nativeProjectionDebug } from "./nativeProjectionDebug";
 import type {
   DeviceScreenOrientationDegrees,
   Quat,
@@ -14,7 +14,7 @@ import type {
   Vec3,
 } from "./types";
 
-const {DEG2RAD, RAD2DEG, WGS84_F, WGS84_A} = AR_CONSTANTS;
+const { DEG2RAD, RAD2DEG, WGS84_F, WGS84_A } = AR_CONSTANTS;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
 
 export type SensorStartErrorCode =
@@ -62,21 +62,24 @@ function getCompassCalibrationPercent(accuracy: number): number {
 
 // ============ QUATERNION MATH ============
 
+// inverts all but a zaro
 function inverse(q: Quat): Quat {
   const norm = Math.hypot(q.x, q.y, q.z, q.w);
-  if (norm === 0) return {x: 0, y: 0, z: 0, w: 1};
+  if (norm === 0) return { x: 0, y: 0, z: 0, w: 1 };
+
+  const cleanZero = (value: number): number =>
+    Object.is(value, -0) ? 0 : value;
 
   return {
-    x: -q.x / norm,
-    y: -q.y / norm,
-    z: -q.z / norm,
-    w: q.w / norm,
+    x: cleanZero(-q.x / norm),
+    y: cleanZero(-q.y / norm),
+    z: cleanZero(-q.z / norm),
+    w: cleanZero(q.w / norm),
   };
 }
-
 function rotateVector(v: Vec3, q: Quat): Vec3 {
-  const {x: qx, y: qy, z: qz, w: qw} = q;
-  const {x: vx, y: vy, z: vz} = v;
+  const { x: qx, y: qy, z: qz, w: qw } = q;
+  const { x: vx, y: vy, z: vz } = v;
 
   const tx = 2 * (qy * vz - qz * vy);
   const ty = 2 * (qz * vx - qx * vz);
@@ -99,7 +102,7 @@ class SensorHub {
     lat: 0,
     lon: 0,
     elevation: 0,
-    orientation: {x: 0, y: 0, z: 0, w: 1},
+    orientation: { x: 0, y: 0, z: 0, w: 1 },
     screenOrientationDegrees: 0,
     heading: 0,
     headingAccuracy: 0,
@@ -108,9 +111,9 @@ class SensorHub {
     timestamp: 0,
   };
 
-  private deviceMotionSub: {remove(): void} | null = null;
-  private locationWatch: {remove(): void} | null = null;
-  private headingWatch: {remove(): void} | null = null;
+  private deviceMotionSub: { remove(): void } | null = null;
+  private locationWatch: { remove(): void } | null = null;
+  private headingWatch: { remove(): void } | null = null;
   private startPromise: Promise<void> | null = null;
   private consumerCount = 0;
 
@@ -138,7 +141,7 @@ class SensorHub {
   getSnapshot(): SensorSnapshot {
     const nextSnapshot = {
       ...this.snapshot,
-      orientation: {...this.snapshot.orientation},
+      orientation: { ...this.snapshot.orientation },
     };
     nativeProjectionDebug.setSensorSnapshot(nextSnapshot);
     return nextSnapshot;
@@ -215,7 +218,7 @@ class SensorHub {
         rot.qz !== undefined &&
         rot.qw !== undefined
       ) {
-        orientation = {x: rot.qx, y: rot.qy, z: rot.qz, w: rot.qw};
+        orientation = { x: rot.qx, y: rot.qy, z: rot.qz, w: rot.qw };
       } else if (
         rot.alpha !== undefined &&
         rot.beta !== undefined &&
@@ -331,7 +334,7 @@ function geoToENU(
   alt2: number,
 ): Vec3 {
   if (!Number.isFinite(lat2) || !Number.isFinite(lon2)) {
-    return {x: 0, y: 0, z: 0};
+    return { x: 0, y: 0, z: 0 };
   }
 
   const phi1 = lat1 * DEG2RAD;
@@ -371,15 +374,7 @@ function geoToENU(
       Math.sin(phi1) * dz,
   };
 
-  nativeProjectionDebug.registerGeo(
-    result,
-    lat1,
-    lon1,
-    alt1,
-    lat2,
-    lon2,
-    alt2,
-  );
+  nativeProjectionDebug.registerGeo(result, lat1, lon1, alt1, lat2, lon2, alt2);
   return result;
 }
 
