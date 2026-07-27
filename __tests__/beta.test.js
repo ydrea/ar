@@ -225,6 +225,14 @@ describe("beta ARView", () => {
     });
   });
 
+  test("shows the device heading in the HUD", async () => {
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("225°")).toBeTruthy();
+    });
+  });
+
   test("renders the animated camera and starts SensorHub", async () => {
     await render(<ARView />);
 
