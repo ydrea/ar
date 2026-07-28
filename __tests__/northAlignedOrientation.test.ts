@@ -87,36 +87,106 @@ describe("north-aligned camera quaternion", () => {
     });
   });
 
-  test("fuses true-minus-magnetic declination into the quaternion", () => {
+  test("anchors DeviceMotion yaw to the live true heading", () => {
+    const northFacingMotion = {
+      x: -Math.SQRT1_2,
+      y: 0,
+      z: 0,
+      w: Math.SQRT1_2,
+    };
     const orientation = createNorthAlignedCameraQuaternion(
-      {x: 0, y: 0, z: 0, w: 1},
+      northFacingMotion,
       0,
-      350,
-      0,
+      220,
+      224,
     );
 
-    const tenDegrees = (10 * Math.PI) / 180;
-    expectVectorClose(rotateVector({x: 1, y: 0, z: 0}, orientation), {
-      x: Math.cos(tenDegrees),
-      y: Math.sin(tenDegrees),
-      z: 0,
-    });
+    const heading = (224 * Math.PI) / 180;
+    expectVectorClose(
+      rotateVector(
+        {x: Math.sin(heading), y: Math.cos(heading), z: 0},
+        orientation,
+      ),
+      {
+        x: 0,
+        y: 0,
+        z: -1,
+      },
+    );
   });
 
-  test("does not invent a true-north correction when true heading is unavailable", () => {
-    const source = {x: 0.2, y: -0.3, z: 0.4, w: 0.842614977};
+  test("makes the southwest Zagreb trial POIs forward at heading 224", () => {
+    const northFacingMotion = {
+      x: -Math.SQRT1_2,
+      y: 0,
+      z: 0,
+      w: Math.SQRT1_2,
+    };
     const orientation = createNorthAlignedCameraQuaternion(
-      source,
+      northFacingMotion,
+      0,
+      224,
+      null,
+    );
+
+    const jarunBearing = (224 * Math.PI) / 180;
+    const eastTrialBearing = (102 * Math.PI) / 180;
+    const jarunCamera = rotateVector(
+      {x: Math.sin(jarunBearing), y: Math.cos(jarunBearing), z: 0},
+      orientation,
+    );
+    const eastTrialCamera = rotateVector(
+      {x: Math.sin(eastTrialBearing), y: Math.cos(eastTrialBearing), z: 0},
+      orientation,
+    );
+
+    expect(jarunCamera.z).toBeCloseTo(-1, 10);
+    expect(jarunCamera.x).toBeCloseTo(0, 10);
+    expect(jarunCamera.y).toBeCloseTo(0, 10);
+    expect(eastTrialCamera.z).toBeGreaterThan(0);
+  });
+
+  test("uses magnetic heading when true heading is unavailable", () => {
+    const northFacingMotion = {
+      x: -Math.SQRT1_2,
+      y: 0,
+      z: 0,
+      w: Math.SQRT1_2,
+    };
+    const orientation = createNorthAlignedCameraQuaternion(
+      northFacingMotion,
+      0,
+      102,
+      null,
+    );
+
+    const heading = (102 * Math.PI) / 180;
+    expectVectorClose(
+      rotateVector(
+        {x: Math.sin(heading), y: Math.cos(heading), z: 0},
+        orientation,
+      ),
+      {
+        x: 0,
+        y: 0,
+        z: -1,
+      },
+    );
+  });
+
+  test("preserves the quaternion when camera-forward has no horizontal bearing", () => {
+    const orientation = createNorthAlignedCameraQuaternion(
+      {x: 0, y: 0, z: 0, w: 1},
       0,
       278,
       null,
     );
 
-    const sourceLength = Math.hypot(source.x, source.y, source.z, source.w);
-    expect(orientation.x).toBeCloseTo(source.x / sourceLength, 10);
-    expect(orientation.y).toBeCloseTo(source.y / sourceLength, 10);
-    expect(orientation.z).toBeCloseTo(source.z / sourceLength, 10);
-    expect(orientation.w).toBeCloseTo(source.w / sourceLength, 10);
+    expectVectorClose(rotateVector({x: 1, y: 0, z: 0}, orientation), {
+      x: 1,
+      y: 0,
+      z: 0,
+    });
   });
 
   test("declination correction preserves the gravity/up transform", () => {
