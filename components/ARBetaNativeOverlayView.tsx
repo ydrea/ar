@@ -50,7 +50,14 @@ const DATASET_RADIUS_METERS = AR_CONSTANTS.DISTANCE.MAX;
 const POSITION_COMMIT_THRESHOLD_PX = 1.5;
 const DISTANCE_COMMIT_THRESHOLD_METERS = 2;
 const LABEL_WIDTH = 170;
+const LABEL_HEIGHT = 58;
+const LABEL_COLLISION_PADDING = 8;
+const MAX_VISIBLE_LABELS = 8;
+const MAX_EDGE_INDICATORS = 10;
+const EDGE_INDICATOR_SPACING = 28;
 const EDGE_MARGIN = 28;
+const OVERLAY_TOP_INSET = 58;
+const OVERLAY_BOTTOM_INSET = 118;
 
 type Viewport = {
   width: number;
@@ -94,6 +101,14 @@ type IndicatorPlacement = {
   y: number;
   angle: number;
   color: string;
+};
+
+type LabelPlacement = {
+  poi: RenderPOI;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
 };
 
 const DEFAULT_GESTURE_STATE: GestureState = {
@@ -281,6 +296,53 @@ function formatDistance(distance: number): string {
     : `${(distance / 1000).toFixed(1)}km`;
 }
 
+function isDebugPOI(poi: SourcePOI): boolean {
+  return poi.id === 999 || poi.name.trim().toUpperCase() === "TEST";
+}
+
+function selectVisibleLabels(
+  pois: readonly RenderPOI[],
+  viewport: Viewport,
+): RenderPOI[] {
+  const placements: LabelPlacement[] = [];
+  const maxY = viewport.height - OVERLAY_BOTTOM_INSET;
+
+  for (const poi of [...pois].sort((left, right) => left.distance - right.distance)) {
+    if (placements.length >= MAX_VISIBLE_LABELS) break;
+
+    const left = poi.screenPos.x - LABEL_WIDTH / 2;
+    const top = poi.screenPos.y - 32;
+    const placement: LabelPlacement = {
+      poi,
+      left,
+      top,
+      right: left + LABEL_WIDTH,
+      bottom: top + LABEL_HEIGHT,
+    };
+
+    if (
+      placement.left < EDGE_MARGIN ||
+      placement.right > viewport.width - EDGE_MARGIN ||
+      placement.top < OVERLAY_TOP_INSET ||
+      placement.bottom > maxY
+    ) {
+      continue;
+    }
+
+    const overlaps = placements.some(
+      (existing) =>
+        placement.left < existing.right + LABEL_COLLISION_PADDING &&
+        placement.right > existing.left - LABEL_COLLISION_PADDING &&
+        placement.top < existing.bottom + LABEL_COLLISION_PADDING &&
+        placement.bottom > existing.top - LABEL_COLLISION_PADDING,
+    );
+
+    if (!overlaps) placements.push(placement);
+  }
+
+  return placements.map(({ poi }) => poi);
+}
+
 function classifyIndicator(poi: RenderPOI): IndicatorKind | null {
   if (poi.screenPos.clippedByDistance === "max") return "too-far";
   if (poi.screenPos.clippedByDistance === "min") return "too-close";
@@ -306,19 +368,19 @@ function getIndicatorPlacement(
     dy = -1;
   }
 
-  const angle = Math.atan2(dy, dx);
+  const sourceAngle = Math.atan2(dy, dx);
   const horizontalPosition = Math.max(
     EDGE_MARGIN,
     Math.min(
       viewport.width - EDGE_MARGIN,
-      centerX + Math.cos(angle) * (viewport.width / 2 - EDGE_MARGIN),
+      centerX + Math.cos(sourceAngle) * (viewport.width / 2 - EDGE_MARGIN),
     ),
   );
 
   if (kind === "too-far") {
     return {
       x: horizontalPosition,
-      y: EDGE_MARGIN,
+      y: OVERLAY_TOP_INSET,
       angle: -Math.PI / 2,
       color: "rgba(255, 190, 80, 0.95)",
     };
@@ -327,26 +389,60 @@ function getIndicatorPlacement(
   if (kind === "too-close") {
     return {
       x: horizontalPosition,
-      y: viewport.height - EDGE_MARGIN,
+      y: viewport.height - OVERLAY_BOTTOM_INSET,
       angle: Math.PI / 2,
       color: "rgba(80, 190, 255, 0.95)",
     };
   }
 
+  const safeTop = OVERLAY_TOP_INSET;
+  const safeBottom = viewport.height - OVERLAY_BOTTOM_INSET;
+  const safeCenterY = (safeTop + safeBottom) / 2;
   const availableX = viewport.width / 2 - EDGE_MARGIN;
-  const availableY = viewport.height / 2 - EDGE_MARGIN;
+  const availableTop = safeCenterY - safeTop;
+  const availableBottom = safeBottom - safeCenterY;
+  dy += centerY - safeCenterY;
   const scaleX =
     Math.abs(dx) > 0.001 ? availableX / Math.abs(dx) : Number.POSITIVE_INFINITY;
+  const availableY = dy < 0 ? availableTop : availableBottom;
   const scaleY =
     Math.abs(dy) > 0.001 ? availableY / Math.abs(dy) : Number.POSITIVE_INFINITY;
   const scale = Math.min(scaleX, scaleY);
+  const edgeAngle = Math.atan2(dy, dx);
 
   return {
     x: centerX + dx * scale,
-    y: centerY + dy * scale,
-    angle,
+    y: safeCenterY + dy * scale,
+    angle: edgeAngle,
     color: "rgba(255, 255, 255, 0.92)",
   };
+}
+
+function selectEdgeIndicators(
+  pois: readonly RenderPOI[],
+  viewport: Viewport,
+): IndicatorPlacement[] {
+  const selected: IndicatorPlacement[] = [];
+
+  for (const poi of [...pois].sort((left, right) => left.distance - right.distance)) {
+    if (selected.length >= MAX_EDGE_INDICATORS) break;
+
+    const kind = classifyIndicator(poi);
+    if (!kind) continue;
+
+    const placement = getIndicatorPlacement(poi, viewport, kind);
+    const overlaps = selected.some(
+      (existing) =>
+        Math.hypot(
+          placement.x - existing.x,
+          placement.y - existing.y,
+        ) < EDGE_INDICATOR_SPACING,
+    );
+
+    if (!overlaps) selected.push(placement);
+  }
+
+  return selected;
 }
 
 const VisiblePOIMarker = memo(function VisiblePOIMarker({
@@ -403,6 +499,7 @@ const EdgeTriangle = memo(function EdgeTriangle({
   return (
     <View
       pointerEvents="none"
+      testID="edge-indicator"
       style={[
         styles.edgeTriangle,
         {
@@ -645,11 +742,13 @@ export default function ARBetaNativeOverlayView() {
       .then((loadedPOIs) => {
         if (cancelled) return;
 
-        if (loadedPOIs.length === 0) {
+        const productionPOIs = loadedPOIs.filter((poi) => !isDebugPOI(poi));
+
+        if (productionPOIs.length === 0) {
           throw new Error("POI binary contains no records");
         }
 
-        setPOIs(loadedPOIs);
+        setPOIs(productionPOIs);
         setPOILoadError(null);
       })
       .catch((error: unknown) => {
@@ -704,6 +803,14 @@ export default function ARBetaNativeOverlayView() {
     () => projectedPOIs.filter((poi) => poi.isVisible),
     [projectedPOIs],
   );
+  const visibleLabels = useMemo(
+    () => selectVisibleLabels(visiblePOIs, viewport),
+    [viewport, visiblePOIs],
+  );
+  const edgeIndicators = useMemo(
+    () => selectEdgeIndicators(projectedPOIs, viewport),
+    [projectedPOIs, viewport],
+  );
 
   return (
     <GestureDetector gesture={pinchGesture}>
@@ -739,20 +846,16 @@ export default function ARBetaNativeOverlayView() {
             </Text>
           ) : null}
 
-          {projectedPOIs.map((poi) => {
-            if (poi.isVisible) {
-              return <VisiblePOIMarker key={poi.id} poi={poi} />;
-            }
-            const kind = classifyIndicator(poi);
-            if (!kind) return null;
+          {visibleLabels.map((poi) => (
+            <VisiblePOIMarker key={poi.id} poi={poi} />
+          ))}
 
-            return (
-              <EdgeTriangle
-                key={poi.id}
-                placement={getIndicatorPlacement(poi, viewport, kind)}
-              />
-            );
-          })}
+          {edgeIndicators.map((placement, index) => (
+            <EdgeTriangle
+              key={`${placement.x}:${placement.y}:${index}`}
+              placement={placement}
+            />
+          ))}
 
           <View style={styles.reticle}>
             <View style={styles.reticleDot} />

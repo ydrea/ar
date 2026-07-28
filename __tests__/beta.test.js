@@ -17,13 +17,17 @@ const originalError = console.error;
 const originalLog = console.log;
 
 function createMockPOIs(count) {
-  return Array.from({ length: count }, (_, index) => ({
-    id: index + 1,
-    name: `Island ${index + 1}`,
-    lat: 42 + (index % 100) * 0.001,
-    lon: 14 + Math.floor(index / 100) * 0.001,
-    alt: index % 500,
-  }));
+  return Array.from({ length: count }, (_, index) => {
+    const id = index >= 998 ? index + 2 : index + 1;
+
+    return {
+      id,
+      name: `Island ${id}`,
+      lat: 42 + (index % 100) * 0.001,
+      lon: 14 + Math.floor(index / 100) * 0.001,
+      alt: index % 500,
+    };
+  });
 }
 
 const mockLoadPOIsFromAsset = jest.fn();
@@ -41,8 +45,8 @@ const mockAnimatedZoom = { value: 0 };
 
 const mockProjectedPOIs = Array.from({ length: 36 }, (_, poiIndex) => ({
   poiIndex,
-  x: 100,
-  y: 100,
+  x: 300,
+  y: 200,
   depth: 10,
   distance: 10,
   bearing: 0,
@@ -230,6 +234,65 @@ describe("beta ARView", () => {
 
     await waitFor(() => {
       expect(screen.getByText("225°")).toBeTruthy();
+    });
+  });
+
+  test("renders only one label when visible POIs collide", async () => {
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(mockNativeEngine.getFrame).toHaveBeenCalled();
+    });
+
+    expect(screen.getAllByText(/^Island /)).toHaveLength(1);
+  });
+
+  test("removes the packaged debug POI before native initialization", async () => {
+    mockLoadPOIsFromAsset.mockResolvedValueOnce([
+      {
+        id: 999,
+        name: "TEST",
+        lat: 45.8,
+        lon: 15.96,
+        alt: 1,
+      },
+      {
+        id: 1,
+        name: "Real POI",
+        lat: 45.81,
+        lon: 15.97,
+        alt: 1,
+      },
+    ]);
+
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(mockNativeEngine.initialize).toHaveBeenCalledWith([
+        expect.objectContaining({ id: "1", name: "Real POI" }),
+      ]);
+    });
+  });
+
+  test("deduplicates overlapping edge indicators", async () => {
+    const offscreenPOIs = mockProjectedPOIs.map((poi) => ({
+      ...poi,
+      x: -100,
+      y: 200,
+      visible: false,
+      clipped: true,
+    }));
+    mockNativeEngine.getFrame.mockReturnValue({
+      sequence: 2,
+      timestampNs: 2,
+      projectedPOIs: offscreenPOIs,
+      visiblePOIs: [],
+    });
+
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("edge-indicator")).toHaveLength(1);
     });
   });
 
