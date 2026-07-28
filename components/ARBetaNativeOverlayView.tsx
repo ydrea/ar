@@ -862,14 +862,6 @@ export default function ARBetaNativeOverlayView() {
               <Text style={styles.poiCounterValue}>{Math.round(fov)}°</Text>
             </View>
           </View>
-          {poiLoadError
-            ? "data error"
-            : pois.length === 0
-              ? "loading data"
-              : engineMode === "native"
-                ? "C++"
-                : engineMode}
-
           {poiLoadError ? (
             <Text style={styles.poiLoadError}>
               Failed to load POIs: {poiLoadError.message}
