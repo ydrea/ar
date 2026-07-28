@@ -53,9 +53,41 @@ function zRotationQuaternion(degrees: number): Quat {
   };
 }
 
-/** Returns the signed shortest rotation from `from` to `to`. */
+function inverseUnitQuaternion(q: Quat): Quat {
+  return {x: -q.x, y: -q.y, z: -q.z, w: q.w};
+}
+
+function rotateVector(
+  vector: {x: number; y: number; z: number},
+  q: Quat,
+): {x: number; y: number; z: number} {
+  const tx = 2 * (q.y * vector.z - q.z * vector.y);
+  const ty = 2 * (q.z * vector.x - q.x * vector.z);
+  const tz = 2 * (q.x * vector.y - q.y * vector.x);
+
+  return {
+    x: vector.x + q.w * tx + (q.y * tz - q.z * ty),
+    y: vector.y + q.w * ty + (q.z * tx - q.x * tz),
+    z: vector.z + q.w * tz + (q.x * ty - q.y * tx),
+  };
+}
+
+function cameraForwardBearing(orientation: Quat): number | null {
+  const worldForward = rotateVector(
+    {x: 0, y: 0, z: -1},
+    inverseUnitQuaternion(orientation),
+  );
+  const horizontalLength = Math.hypot(worldForward.x, worldForward.y);
+
+  if (horizontalLength < 1e-6) return null;
+
+  return (
+    (Math.atan2(worldForward.x, worldForward.y) * 180) / Math.PI +
+    360
+  ) % 360;
+}
+
 function shortestAngleDegrees(from: number, to: number): number {
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
   return ((to - from + 540) % 360) - 180;
 }
 
@@ -67,13 +99,14 @@ function shortestAngleDegrees(from: number, to: number): number {
  * that live value supports both landscape directions on Android, iPhone and
  * iPad instead of assuming a fixed home-button side.
  *
- * Expo Location calculates true heading by adding geomagnetic declination to
- * magnetic heading. Their difference is independent of how the phone is held,
- * so it is safe to apply that difference as a world-Z correction without
- * replacing DeviceMotion's pitch, roll, or smooth fused yaw.
+ * DeviceMotion supplies smooth pitch and roll, but its yaw reference is not
+ * guaranteed to match Expo Location heading on every Android device. Infer the
+ * quaternion's current horizontal forward bearing and rotate its world-Z input
+ * so camera-forward equals the live compass heading. This preserves gravity,
+ * pitch and roll while making geographic POI bearings authoritative.
  *
  * Matrix order:
- *   screenFromPortrait * motionFromMagneticWorld * magneticFromTrueWorld
+ *   screenFromPortrait * motionFromWorld * worldHeadingCorrection
  */
 export function createNorthAlignedCameraQuaternion(
   motionOrientation: Quat,
@@ -82,17 +115,22 @@ export function createNorthAlignedCameraQuaternion(
   trueHeading: number | null,
 ): Quat {
   const portraitToScreen = zRotationQuaternion(-screenOrientationDegrees);
-  const declinationDegrees =
-    trueHeading === null
-      ? 0
-      : shortestAngleDegrees(magneticHeading, trueHeading);
-  const magneticToTrueNorth = zRotationQuaternion(declinationDegrees);
+  const screenOrientation = normalizeQuaternion(
+    multiplyQuaternions(portraitToScreen, motionOrientation),
+  );
+  const currentBearing = cameraForwardBearing(screenOrientation);
+  const targetHeading = trueHeading ?? magneticHeading;
+
+  if (currentBearing === null || !Number.isFinite(targetHeading)) {
+    return screenOrientation;
+  }
+
+  const headingCorrection = zRotationQuaternion(
+    shortestAngleDegrees(currentBearing, targetHeading),
+  );
 
   return normalizeQuaternion(
-    multiplyQuaternions(
-      multiplyQuaternions(portraitToScreen, motionOrientation),
-      magneticToTrueNorth,
-    ),
+    multiplyQuaternions(screenOrientation, headingCorrection),
   );
 }
 
