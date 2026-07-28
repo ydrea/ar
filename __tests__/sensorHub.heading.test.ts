@@ -121,6 +121,19 @@ describe("SensorHub compass integration", () => {
     });
   });
 
+  test("preserves the DeviceMotion quaternion without conjugating every axis", async () => {
+    await sensorHub.start();
+
+    emitMotion?.({
+      orientation: 90,
+      rotation: {qx: 0.1, qy: -0.2, qz: 0.3, qw: 0.9},
+    });
+
+    expect(sensorHub.getSnapshot()).toMatchObject({
+      orientation: {x: 0.1, y: -0.2, z: 0.3, w: 0.9},
+    });
+  });
+
   test("rejects startup when device motion is unavailable", async () => {
     deviceMotion.isAvailableAsync.mockResolvedValue(false);
 
