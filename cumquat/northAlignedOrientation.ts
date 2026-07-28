@@ -3,6 +3,18 @@ import type {Quat, SensorSnapshot} from "@/cumquat/types";
 
 const IDENTITY_QUATERNION: Quat = {x: 0, y: 0, z: 0, w: 1};
 
+function normalizeHeading(degrees: number): number {
+  return ((degrees % 360) + 360) % 360;
+}
+
+export function cameraHeadingForScreen(
+  portraitHeading: number,
+  screenOrientationDegrees: number,
+): number {
+  if (!Number.isFinite(portraitHeading)) return 0;
+  return normalizeHeading(portraitHeading + screenOrientationDegrees);
+}
+
 function normalizeQuaternion(q: Quat): Quat {
   const length = Math.hypot(q.x, q.y, q.z, q.w);
   if (!Number.isFinite(length) || length <= Number.EPSILON) {
@@ -149,14 +161,32 @@ export function installNorthAlignedOrientation(): void {
 
   sensorHub.getSnapshot = (): SensorSnapshot => {
     const snapshot = getRawSnapshot();
+    const magneticHeading = cameraHeadingForScreen(
+      snapshot.magneticHeading,
+      snapshot.screenOrientationDegrees,
+    );
+    const trueHeading =
+      snapshot.trueHeading === null
+        ? null
+        : cameraHeadingForScreen(
+            snapshot.trueHeading,
+            snapshot.screenOrientationDegrees,
+          );
+    const heading = cameraHeadingForScreen(
+      snapshot.heading,
+      snapshot.screenOrientationDegrees,
+    );
 
     return {
       ...snapshot,
+      heading,
+      magneticHeading,
+      trueHeading,
       orientation: createNorthAlignedCameraQuaternion(
         snapshot.orientation,
         snapshot.screenOrientationDegrees,
-        snapshot.magneticHeading,
-        snapshot.trueHeading,
+        magneticHeading,
+        trueHeading,
       ),
     };
   };

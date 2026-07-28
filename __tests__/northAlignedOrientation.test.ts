@@ -10,6 +10,7 @@ jest.mock("@/cumquat/sensors", () => ({
 
 import {sensorHub} from "@/cumquat/sensors";
 import {
+  cameraHeadingForScreen,
   createNorthAlignedCameraQuaternion,
   installNorthAlignedOrientation,
 } from "@/cumquat/northAlignedOrientation";
@@ -70,6 +71,13 @@ describe("north-aligned camera quaternion", () => {
       y: 1,
       z: 0,
     });
+  });
+
+  test("converts portrait compass heading to the landscape camera heading", () => {
+    expect(cameraHeadingForScreen(270, 90)).toBe(0);
+    expect(cameraHeadingForScreen(262, 90)).toBe(352);
+    expect(cameraHeadingForScreen(90, -90)).toBe(0);
+    expect(cameraHeadingForScreen(355, 0)).toBe(355);
   });
 
   test("uses live right-landscape orientation", () => {
@@ -234,5 +242,8 @@ describe("north-aligned camera quaternion", () => {
     expect(snapshot.orientation.y).toBeCloseTo(expected.y, 12);
     expect(snapshot.orientation.z).toBeCloseTo(expected.z, 12);
     expect(snapshot.orientation.w).toBeCloseTo(expected.w, 12);
+    expect(snapshot.heading).toBe(270);
+    expect(snapshot.magneticHeading).toBe(260);
+    expect(snapshot.trueHeading).toBe(270);
   });
 });

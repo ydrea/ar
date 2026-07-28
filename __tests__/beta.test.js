@@ -119,11 +119,11 @@ jest.mock("@/cumquat/sensors", () => {
       lon: 15.96,
       elevation: 120,
       orientation: { x: 0, y: 0, z: 0, w: 1 },
-      screenOrientationDegrees: -90,
-      heading: 225,
+      screenOrientationDegrees: 90,
+      heading: 270,
       headingAccuracy: 3,
-      magneticHeading: 225,
-      trueHeading: 225,
+      magneticHeading: 270,
+      trueHeading: 270,
       timestamp: Date.now(),
     })),
   };
@@ -216,7 +216,7 @@ describe("beta ARView", () => {
     await waitFor(() => {
       expect(mockNativeEngine.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          headingDegrees: 225,
+          headingDegrees: 0,
           location: expect.objectContaining({
             latitude: 45.8,
             longitude: 15.96,
@@ -233,7 +233,7 @@ describe("beta ARView", () => {
     await render(<ARView />);
 
     await waitFor(() => {
-      expect(screen.getByText("225°")).toBeTruthy();
+      expect(screen.getByText("0°")).toBeTruthy();
     });
   });
 
@@ -314,7 +314,7 @@ describe("beta ARView", () => {
     await waitFor(() => {
       expect(mockNativeEngine.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          headingDegrees: 225,
+          headingDegrees: 0,
           location: expect.objectContaining({
             latitude: 45.8,
             longitude: 15.96,
