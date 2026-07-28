@@ -434,6 +434,7 @@ export default function ARBetaNativeOverlayView() {
   const [activeLimit, setActiveLimit] = useState<LimitType | null>(null);
   const [rubberBandIntensity, setRubberBandIntensity] = useState(0);
   const [isReady, setIsReady] = useState(false);
+  const [deviceHeading, setDeviceHeading] = useState(0);
 
   const nativeEngineRef = useRef<NativeEngine | null>(null);
   const nativeDisabledRef = useRef(false);
@@ -530,6 +531,8 @@ export default function ARBetaNativeOverlayView() {
   const renderSnapshot = useCallback(
     (snapshot: SensorSnapshot) => {
       if (pois.length === 0) return;
+
+      setDeviceHeading(normalizeAngle(snapshot.heading));
 
       const currentViewport = viewportRef.current;
 
@@ -702,15 +705,6 @@ export default function ARBetaNativeOverlayView() {
     [projectedPOIs],
   );
 
-  const averageBearing = useMemo(() => {
-    if (visiblePOIs.length === 0) return 0;
-
-    return normalizeAngle(
-      visiblePOIs.reduce((sum, poi) => sum + poi.bearing, 0) /
-        visiblePOIs.length,
-    );
-  }, [visiblePOIs]);
-
   return (
     <GestureDetector gesture={pinchGesture}>
       <View style={styles.container} onLayout={handleLayout}>
@@ -781,7 +775,7 @@ export default function ARBetaNativeOverlayView() {
             <View style={styles.hudCell}>
               <Text style={styles.hudLabel}>BEARING</Text>
               <Text style={[styles.hudValue, { color: "#00BCD4" }]}>
-                {Math.round(averageBearing)}°
+                {Math.round(deviceHeading)}°
               </Text>
             </View>
 
