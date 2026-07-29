@@ -111,6 +111,11 @@ type LabelPlacement = {
   bottom: number;
 };
 
+type OverlayLayout = {
+  labels: RenderPOI[];
+  indicators: IndicatorPlacement[];
+};
+
 const DEFAULT_GESTURE_STATE: GestureState = {
   minDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MIN,
   maxDistance: AR_CONSTANTS.DISTANCE.DEFAULT_MAX,
@@ -345,10 +350,13 @@ function selectVisibleLabels(
   return placements.map(({ poi }) => poi);
 }
 
-function classifyIndicator(poi: RenderPOI): IndicatorKind | null {
+function classifyIndicator(
+  poi: RenderPOI,
+  rejectedByLabelLayout: boolean,
+): IndicatorKind | null {
   if (poi.screenPos.clippedByDistance === "max") return "too-far";
   if (poi.screenPos.clippedByDistance === "min") return "too-close";
-  if (poi.isOffscreen) return "offscreen";
+  if (poi.isOffscreen || rejectedByLabelLayout) return "offscreen";
   return null;
 }
 
@@ -423,6 +431,7 @@ function getIndicatorPlacement(
 function selectEdgeIndicators(
   pois: readonly RenderPOI[],
   viewport: Viewport,
+  labelIds: ReadonlySet<number>,
 ): IndicatorPlacement[] {
   const selected: IndicatorPlacement[] = [];
 
@@ -430,8 +439,9 @@ function selectEdgeIndicators(
     (left, right) => left.distance - right.distance,
   )) {
     if (selected.length >= MAX_EDGE_INDICATORS) break;
+    if (labelIds.has(poi.id)) continue;
 
-    const kind = classifyIndicator(poi);
+    const kind = classifyIndicator(poi, poi.isVisible);
     if (!kind) continue;
 
     const placement = getIndicatorPlacement(poi, viewport, kind);
@@ -445,6 +455,22 @@ function selectEdgeIndicators(
   }
 
   return selected;
+}
+
+function layoutOverlay(
+  pois: readonly RenderPOI[],
+  viewport: Viewport,
+): OverlayLayout {
+  const labels = selectVisibleLabels(
+    pois.filter((poi) => poi.isVisible),
+    viewport,
+  );
+  const labelIds = new Set(labels.map((poi) => poi.id));
+
+  return {
+    labels,
+    indicators: selectEdgeIndicators(pois, viewport, labelIds),
+  };
 }
 
 const VisiblePOIMarker = memo(function VisiblePOIMarker({
@@ -801,16 +827,8 @@ export default function ARBetaNativeOverlayView() {
     return () => clearInterval(interval);
   }, [isReady, pois.length, renderSnapshot]);
 
-  const visiblePOIs = useMemo(
-    () => projectedPOIs.filter((poi) => poi.isVisible),
-    [projectedPOIs],
-  );
-  const visibleLabels = useMemo(
-    () => selectVisibleLabels(visiblePOIs, viewport),
-    [viewport, visiblePOIs],
-  );
-  const edgeIndicators = useMemo(
-    () => selectEdgeIndicators(projectedPOIs, viewport),
+  const overlayLayout = useMemo(
+    () => layoutOverlay(projectedPOIs, viewport),
     [projectedPOIs, viewport],
   );
 
@@ -833,7 +851,8 @@ export default function ARBetaNativeOverlayView() {
         >
           <View style={styles.poiHUD}>
             <Text style={[styles.poiCounterLeft]}>
-              POIs: {visiblePOIs.length} visible / {projectedPOIs.length} active
+              POIs: {overlayLayout.labels.length} visible /{" "}
+              {projectedPOIs.length} active
             </Text>
 
             <View style={styles.poiCounterGroup}>
@@ -868,11 +887,11 @@ export default function ARBetaNativeOverlayView() {
             </Text>
           ) : null}
         </View>
-        {visibleLabels.map((poi) => (
+        {overlayLayout.labels.map((poi) => (
           <VisiblePOIMarker key={poi.id} poi={poi} />
         ))}
 
-        {edgeIndicators.map((placement, index) => (
+        {overlayLayout.indicators.map((placement, index) => (
           <EdgeTriangle
             key={`${placement.x}:${placement.y}:${index}`}
             placement={placement}
