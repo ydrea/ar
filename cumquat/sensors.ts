@@ -16,6 +16,9 @@ import type {
 
 const { DEG2RAD, RAD2DEG, WGS84_F, WGS84_A } = AR_CONSTANTS;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
+const HEADING_SMOOTHING_ALPHA = 0.2;
+const ORIENTATION_SMOOTHING_ALPHA = 0.12;
+const HEADING_DEADBAND_DEGREES = 0.75;
 
 export type SensorStartErrorCode =
   | "motion-unavailable"
@@ -36,6 +39,23 @@ export class SensorStartError extends Error {
 function normalizeHeading(degrees: number): number {
   if (!Number.isFinite(degrees)) return 0;
   return ((degrees % 360) + 360) % 360;
+}
+
+function smoothHeading(
+  previous: number,
+  next: number,
+  alpha = HEADING_SMOOTHING_ALPHA,
+): number {
+  const normalizedPrevious = normalizeHeading(previous);
+  const normalizedNext = normalizeHeading(next);
+  const delta =
+    ((normalizedNext - normalizedPrevious + 540) % 360) - 180;
+
+  if (Math.abs(delta) <= HEADING_DEADBAND_DEGREES) {
+    return normalizedPrevious;
+  }
+
+  return normalizeHeading(normalizedPrevious + delta * alpha);
 }
 
 function normalizeHeadingAccuracy(value: number): 0 | 1 | 2 | 3 {
@@ -77,6 +97,45 @@ function inverse(q: Quat): Quat {
     w: cleanZero(q.w / norm),
   };
 }
+
+function normalizeQuaternion(q: Quat): Quat {
+  const norm = Math.hypot(q.x, q.y, q.z, q.w);
+  if (!Number.isFinite(norm) || norm <= Number.EPSILON) {
+    return { x: 0, y: 0, z: 0, w: 1 };
+  }
+
+  return {
+    x: q.x / norm,
+    y: q.y / norm,
+    z: q.z / norm,
+    w: q.w / norm,
+  };
+}
+
+function smoothQuaternion(
+  previous: Quat,
+  next: Quat,
+  alpha = ORIENTATION_SMOOTHING_ALPHA,
+): Quat {
+  const from = normalizeQuaternion(previous);
+  let to = normalizeQuaternion(next);
+  const dot =
+    from.x * to.x + from.y * to.y + from.z * to.z + from.w * to.w;
+
+  // q and -q represent the same rotation. Keep both samples in the same
+  // hemisphere so interpolation never takes the long path.
+  if (dot < 0) {
+    to = { x: -to.x, y: -to.y, z: -to.z, w: -to.w };
+  }
+
+  return normalizeQuaternion({
+    x: from.x + (to.x - from.x) * alpha,
+    y: from.y + (to.y - from.y) * alpha,
+    z: from.z + (to.z - from.z) * alpha,
+    w: from.w + (to.w - from.w) * alpha,
+  });
+}
+
 function rotateVector(v: Vec3, q: Quat): Vec3 {
   const { x: qx, y: qy, z: qz, w: qw } = q;
   const { x: vx, y: vy, z: vz } = v;
@@ -116,6 +175,9 @@ class SensorHub {
   private headingWatch: { remove(): void } | null = null;
   private startPromise: Promise<void> | null = null;
   private consumerCount = 0;
+  private hasOrientationSample = false;
+  private hasMagneticHeadingSample = false;
+  private hasTrueHeadingSample = false;
 
   async start(): Promise<void> {
     this.consumerCount += 1;
@@ -165,6 +227,9 @@ class SensorHub {
     this.deviceMotionSub = null;
     this.locationWatch = null;
     this.headingWatch = null;
+    this.hasOrientationSample = false;
+    this.hasMagneticHeadingSample = false;
+    this.hasTrueHeadingSample = false;
     nativeProjectionDebug.dispose();
   }
 
@@ -246,7 +311,10 @@ class SensorHub {
         return;
       }
 
-      this.snapshot.orientation = orientation;
+      this.snapshot.orientation = this.hasOrientationSample
+        ? smoothQuaternion(this.snapshot.orientation, orientation)
+        : orientation;
+      this.hasOrientationSample = true;
       this.snapshot.timestamp = Date.now();
     });
   }
@@ -300,12 +368,30 @@ class SensorHub {
 
     try {
       this.headingWatch = await Location.watchHeadingAsync((reading) => {
-        const magneticHeading = normalizeHeading(reading.magHeading);
+        const nextMagneticHeading = normalizeHeading(reading.magHeading);
+        const magneticHeading = this.hasMagneticHeadingSample
+          ? smoothHeading(
+              this.snapshot.magneticHeading,
+              nextMagneticHeading,
+            )
+          : nextMagneticHeading;
+        this.hasMagneticHeadingSample = true;
         const hasTrueHeading =
           Number.isFinite(reading.trueHeading) && reading.trueHeading >= 0;
-        const trueHeading = hasTrueHeading
-          ? normalizeHeading(reading.trueHeading)
-          : null;
+        let trueHeading: number | null = null;
+
+        if (hasTrueHeading) {
+          const nextTrueHeading = normalizeHeading(reading.trueHeading);
+          trueHeading = this.hasTrueHeadingSample
+            ? smoothHeading(
+                this.snapshot.trueHeading ?? nextTrueHeading,
+                nextTrueHeading,
+              )
+            : nextTrueHeading;
+          this.hasTrueHeadingSample = true;
+        } else {
+          this.hasTrueHeadingSample = false;
+        }
 
         this.snapshot.magneticHeading = magneticHeading;
         this.snapshot.trueHeading = trueHeading;
@@ -574,6 +660,8 @@ export {
   projectToScreen,
   projectToScreenWithClipping,
   inverse,
+  smoothHeading,
+  smoothQuaternion,
   rotateVector,
   calculateBearing,
   getCompassCalibrationPercent,
