@@ -5,9 +5,45 @@ import {
   projectToScreen,
   projectToScreenWithClipping,
   rotateVector,
+  smoothHeading,
+  smoothQuaternion,
 } from "@/cumquat/sensors";
 
 describe("sensors utilities", () => {
+  describe("sensor smoothing", () => {
+    test("smooths heading across north using the shortest path", () => {
+      expect(smoothHeading(359, 1, 0.5)).toBeCloseTo(0, 10);
+    });
+
+    test("ignores sub-degree compass jitter", () => {
+      expect(smoothHeading(120, 120.5)).toBe(120);
+    });
+
+    test("treats opposite quaternion signs as the same rotation", () => {
+      expect(
+        smoothQuaternion(
+          { x: 0, y: 0, z: 0, w: 1 },
+          { x: 0, y: 0, z: 0, w: -1 },
+        ),
+      ).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    });
+
+    test("smooths motion while keeping a unit quaternion", () => {
+      const result = smoothQuaternion(
+        { x: 0, y: 0, z: 0, w: 1 },
+        { x: 0, y: 1, z: 0, w: 0 },
+        0.25,
+      );
+
+      expect(Math.hypot(result.x, result.y, result.z, result.w)).toBeCloseTo(
+        1,
+        12,
+      );
+      expect(result.y).toBeGreaterThan(0);
+      expect(result.y).toBeLessThan(1);
+    });
+  });
+
   describe("geoToENU", () => {
     test("returns near-zero for identical coordinates", () => {
       const point = geoToENU(45.8, 15.96, 120, 45.8, 15.96, 120);
