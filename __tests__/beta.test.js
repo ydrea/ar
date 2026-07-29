@@ -237,19 +237,19 @@ describe("beta ARView", () => {
     });
   });
 
-  test("renders only one label when visible POIs collide", async () => {
+  test("fans out colliding visible POIs instead of dropping all but one", async () => {
     await render(<ARView />);
 
     await waitFor(() => {
       expect(mockNativeEngine.getFrame).toHaveBeenCalled();
     });
 
-    expect(screen.getAllByText(/^Island /)).toHaveLength(1);
-    expect(screen.getByText("POIs: 1 visible / 36 active")).toBeTruthy();
+    expect(screen.getAllByText(/^Island /).length).toBeGreaterThan(1);
+    expect(screen.getByText("POIs: 5 visible / 36 active")).toBeTruthy();
     expect(screen.getAllByTestId("edge-indicator")).toHaveLength(1);
   });
 
-  test("does not count a visible POI rejected by the safe viewport", async () => {
+  test("moves a visible POI below the measured HUD boundary", async () => {
     const unsafeVisiblePOI = {
       ...mockProjectedPOIs[0],
       x: 300,
@@ -265,12 +265,18 @@ describe("beta ARView", () => {
 
     await render(<ARView />);
 
-    await waitFor(() => {
-      expect(screen.getByText("POIs: 0 visible / 1 active")).toBeTruthy();
+    fireEvent(screen.getByTestId("poi-hud"), "layout", {
+      nativeEvent: {
+        layout: { x: 12, y: 5, width: 700, height: 100 },
+      },
     });
 
-    expect(screen.queryByText("Island 1")).toBeNull();
-    expect(screen.getAllByTestId("edge-indicator")).toHaveLength(1);
+    await waitFor(() => {
+      expect(screen.getByText("POIs: 1 visible / 1 active")).toBeTruthy();
+    });
+
+    expect(screen.getByText("Island 1")).toHaveStyle({ top: 120 });
+    expect(screen.queryAllByTestId("edge-indicator")).toHaveLength(0);
   });
 
   test("removes the packaged debug POI before native initialization", async () => {
