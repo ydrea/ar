@@ -533,10 +533,7 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
 
       <Text
         pointerEvents="none"
-        style={[
-          styles.poiDistance,
-          { left, top: top + 40, opacity },
-        ]}
+        style={[styles.poiDistance, { left, top: top + 40, opacity }]}
       >
         {formatDistance(poi.distance)}
       </Text>
@@ -925,10 +922,7 @@ export default function ARBetaNativeOverlayView() {
           ) : null}
         </View>
         {overlayLayout.labels.map((placement) => (
-          <VisiblePOIMarker
-            key={placement.poi.id}
-            placement={placement}
-          />
+          <VisiblePOIMarker key={placement.poi.id} placement={placement} />
         ))}
 
         {overlayLayout.indicators.map((placement, index) => (
@@ -978,15 +972,15 @@ const styles = StyleSheet.create({
   poiHUD: {
     position: "absolute",
     top: 5,
-    left: 12,
-    right: 12,
+    left: 10,
+    right: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderWidth: 0.5,
     borderColor: "rgba(255,255,255,0.1)",
   },
@@ -1001,7 +995,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   poiCounterValue: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: "white",
     marginTop: 1,
