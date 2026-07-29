@@ -56,8 +56,9 @@ const MAX_VISIBLE_LABELS = 8;
 const MAX_EDGE_INDICATORS = 10;
 const EDGE_INDICATOR_SPACING = 28;
 const EDGE_MARGIN = 28;
-const OVERLAY_TOP_INSET = 58;
-const OVERLAY_BOTTOM_INSET = 118;
+const DEFAULT_OVERLAY_TOP_INSET = 76;
+const HUD_SAFE_GAP = 12;
+const OVERLAY_BOTTOM_INSET = 28;
 
 type Viewport = {
   width: number;
@@ -112,7 +113,7 @@ type LabelPlacement = {
 };
 
 type OverlayLayout = {
-  labels: RenderPOI[];
+  labels: LabelPlacement[];
   indicators: IndicatorPlacement[];
 };
 
@@ -308,46 +309,65 @@ function isDebugPOI(poi: SourcePOI): boolean {
 function selectVisibleLabels(
   pois: readonly RenderPOI[],
   viewport: Viewport,
-): RenderPOI[] {
+  topInset: number,
+): LabelPlacement[] {
   const placements: LabelPlacement[] = [];
   const maxY = viewport.height - OVERLAY_BOTTOM_INSET;
+  const verticalStep = LABEL_HEIGHT + LABEL_COLLISION_PADDING;
+  const verticalOffsets = [
+    0,
+    -verticalStep,
+    verticalStep,
+    -verticalStep * 2,
+    verticalStep * 2,
+    -verticalStep * 3,
+    verticalStep * 3,
+  ];
 
   for (const poi of [...pois].sort(
     (left, right) => left.distance - right.distance,
   )) {
     if (placements.length >= MAX_VISIBLE_LABELS) break;
 
-    const left = poi.screenPos.x - LABEL_WIDTH / 2;
-    const top = poi.screenPos.y - 32;
-    const placement: LabelPlacement = {
-      poi,
-      left,
-      top,
-      right: left + LABEL_WIDTH,
-      bottom: top + LABEL_HEIGHT,
-    };
-
-    if (
-      placement.left < EDGE_MARGIN ||
-      placement.right > viewport.width - EDGE_MARGIN ||
-      placement.top < OVERLAY_TOP_INSET ||
-      placement.bottom > maxY
-    ) {
-      continue;
-    }
-
-    const overlaps = placements.some(
-      (existing) =>
-        placement.left < existing.right + LABEL_COLLISION_PADDING &&
-        placement.right > existing.left - LABEL_COLLISION_PADDING &&
-        placement.top < existing.bottom + LABEL_COLLISION_PADDING &&
-        placement.bottom > existing.top - LABEL_COLLISION_PADDING,
+    const left = Math.max(
+      EDGE_MARGIN,
+      Math.min(
+        viewport.width - EDGE_MARGIN - LABEL_WIDTH,
+        poi.screenPos.x - LABEL_WIDTH / 2,
+      ),
     );
+    const anchorTop = poi.screenPos.y - 32;
 
-    if (!overlaps) placements.push(placement);
+    for (const offset of verticalOffsets) {
+      const top = anchorTop + offset;
+      const placement: LabelPlacement = {
+        poi,
+        left,
+        top,
+        right: left + LABEL_WIDTH,
+        bottom: top + LABEL_HEIGHT,
+      };
+
+      if (placement.top < topInset || placement.bottom > maxY) {
+        continue;
+      }
+
+      const overlaps = placements.some(
+        (existing) =>
+          placement.left < existing.right + LABEL_COLLISION_PADDING &&
+          placement.right > existing.left - LABEL_COLLISION_PADDING &&
+          placement.top < existing.bottom + LABEL_COLLISION_PADDING &&
+          placement.bottom > existing.top - LABEL_COLLISION_PADDING,
+      );
+
+      if (!overlaps) {
+        placements.push(placement);
+        break;
+      }
+    }
   }
 
-  return placements.map(({ poi }) => poi);
+  return placements;
 }
 
 function classifyIndicator(
@@ -364,6 +384,7 @@ function getIndicatorPlacement(
   poi: RenderPOI,
   viewport: Viewport,
   kind: IndicatorKind,
+  topInset: number,
 ): IndicatorPlacement {
   const centerX = viewport.width / 2;
   const centerY = viewport.height / 2;
@@ -390,7 +411,7 @@ function getIndicatorPlacement(
   if (kind === "too-far") {
     return {
       x: horizontalPosition,
-      y: OVERLAY_TOP_INSET,
+      y: topInset,
       angle: -Math.PI / 2,
       color: "rgba(255, 190, 80, 0.95)",
     };
@@ -405,7 +426,7 @@ function getIndicatorPlacement(
     };
   }
 
-  const safeTop = OVERLAY_TOP_INSET;
+  const safeTop = topInset;
   const safeBottom = viewport.height - OVERLAY_BOTTOM_INSET;
   const safeCenterY = (safeTop + safeBottom) / 2;
   const availableX = viewport.width / 2 - EDGE_MARGIN;
@@ -432,6 +453,7 @@ function selectEdgeIndicators(
   pois: readonly RenderPOI[],
   viewport: Viewport,
   labelIds: ReadonlySet<number>,
+  topInset: number,
 ): IndicatorPlacement[] {
   const selected: IndicatorPlacement[] = [];
 
@@ -444,7 +466,7 @@ function selectEdgeIndicators(
     const kind = classifyIndicator(poi, poi.isVisible);
     if (!kind) continue;
 
-    const placement = getIndicatorPlacement(poi, viewport, kind);
+    const placement = getIndicatorPlacement(poi, viewport, kind, topInset);
     const overlaps = selected.some(
       (existing) =>
         Math.hypot(placement.x - existing.x, placement.y - existing.y) <
@@ -460,24 +482,27 @@ function selectEdgeIndicators(
 function layoutOverlay(
   pois: readonly RenderPOI[],
   viewport: Viewport,
+  topInset: number,
 ): OverlayLayout {
   const labels = selectVisibleLabels(
     pois.filter((poi) => poi.isVisible),
     viewport,
+    topInset,
   );
-  const labelIds = new Set(labels.map((poi) => poi.id));
+  const labelIds = new Set(labels.map(({ poi }) => poi.id));
 
   return {
     labels,
-    indicators: selectEdgeIndicators(pois, viewport, labelIds),
+    indicators: selectEdgeIndicators(pois, viewport, labelIds, topInset),
   };
 }
 
 const VisiblePOIMarker = memo(function VisiblePOIMarker({
-  poi,
+  placement,
 }: {
-  poi: RenderPOI;
+  placement: LabelPlacement;
 }) {
+  const { poi, left, top } = placement;
   const { x, y } = poi.screenPos;
   const distanceRatio = Math.min(1, poi.distance / 2000);
   const opacity = Math.max(0.6, 1 - distanceRatio * 0.5);
@@ -491,8 +516,8 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
         style={[
           styles.poiName,
           {
-            left: x - LABEL_WIDTH / 2,
-            top: y - 30,
+            left,
+            top,
             fontSize,
             opacity,
           },
@@ -510,7 +535,7 @@ const VisiblePOIMarker = memo(function VisiblePOIMarker({
         pointerEvents="none"
         style={[
           styles.poiDistance,
-          { left: x - LABEL_WIDTH / 2, top: y + 10, opacity },
+          { left, top: top + 40, opacity },
         ]}
       >
         {formatDistance(poi.distance)}
@@ -560,6 +585,9 @@ export default function ARBetaNativeOverlayView() {
   const [rubberBandIntensity, setRubberBandIntensity] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [deviceHeading, setDeviceHeading] = useState(0);
+  const [overlayTopInset, setOverlayTopInset] = useState(
+    DEFAULT_OVERLAY_TOP_INSET,
+  );
 
   const nativeEngineRef = useRef<NativeEngine | null>(null);
   const nativeDisabledRef = useRef(false);
@@ -603,6 +631,11 @@ export default function ARBetaNativeOverlayView() {
 
     viewportRef.current = next;
     setViewport(next);
+  }, []);
+
+  const handleHUDLayout = useCallback((event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout;
+    setOverlayTopInset(Math.ceil(y + height + HUD_SAFE_GAP));
   }, []);
 
   const disposeNativeEngine = useCallback(() => {
@@ -828,8 +861,8 @@ export default function ARBetaNativeOverlayView() {
   }, [isReady, pois.length, renderSnapshot]);
 
   const overlayLayout = useMemo(
-    () => layoutOverlay(projectedPOIs, viewport),
-    [projectedPOIs, viewport],
+    () => layoutOverlay(projectedPOIs, viewport, overlayTopInset),
+    [overlayTopInset, projectedPOIs, viewport],
   );
 
   return (
@@ -849,7 +882,11 @@ export default function ARBetaNativeOverlayView() {
           renderToHardwareTextureAndroid
           collapsable={false}
         >
-          <View style={styles.poiHUD}>
+          <View
+            testID="poi-hud"
+            style={styles.poiHUD}
+            onLayout={handleHUDLayout}
+          >
             <Text style={[styles.poiCounterLeft]}>
               POIs: {overlayLayout.labels.length} visible /{" "}
               {projectedPOIs.length} active
@@ -887,8 +924,11 @@ export default function ARBetaNativeOverlayView() {
             </Text>
           ) : null}
         </View>
-        {overlayLayout.labels.map((poi) => (
-          <VisiblePOIMarker key={poi.id} poi={poi} />
+        {overlayLayout.labels.map((placement) => (
+          <VisiblePOIMarker
+            key={placement.poi.id}
+            placement={placement}
+          />
         ))}
 
         {overlayLayout.indicators.map((placement, index) => (
