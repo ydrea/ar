@@ -43,6 +43,12 @@ export const AR_CONSTANTS = {
     STEP: 10000, // 10km steps
   },
 
+  // Sensor stability: 0 = immediate/raw, 1 = maximum smoothing/slow response.
+  // Start at 0.8; increase in small steps (for example 0.85, 0.9).
+  SENSOR: {
+    STABILITY: 0.8,
+  },
+
   // UI settings
   UI: {
     MIN_GAP: 50,
