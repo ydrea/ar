@@ -245,6 +245,32 @@ describe("beta ARView", () => {
     });
 
     expect(screen.getAllByText(/^Island /)).toHaveLength(1);
+    expect(screen.getByText("POIs: 1 visible / 36 active")).toBeTruthy();
+    expect(screen.getAllByTestId("edge-indicator")).toHaveLength(1);
+  });
+
+  test("does not count a visible POI rejected by the safe viewport", async () => {
+    const unsafeVisiblePOI = {
+      ...mockProjectedPOIs[0],
+      x: 300,
+      y: 20,
+    };
+    mockNativeEngine.getFrame.mockReturnValue({
+      sequence: 3,
+      timestampNs: 3,
+      projectedPOIs: [unsafeVisiblePOI],
+      visiblePOIs: [unsafeVisiblePOI],
+    });
+    mockLoadPOIsFromAsset.mockResolvedValueOnce(createMockPOIs(1));
+
+    await render(<ARView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("POIs: 0 visible / 1 active")).toBeTruthy();
+    });
+
+    expect(screen.queryByText("Island 1")).toBeNull();
+    expect(screen.getAllByTestId("edge-indicator")).toHaveLength(1);
   });
 
   test("removes the packaged debug POI before native initialization", async () => {
