@@ -8,9 +8,15 @@ import {
   smoothHeading,
   smoothQuaternion,
 } from "@/cumquat/sensors";
+import { AR_CONSTANTS } from "@/cumquat/constants";
 
 describe("sensors utilities", () => {
   describe("sensor smoothing", () => {
+    test("exposes one bounded stability tuning variable", () => {
+      expect(AR_CONSTANTS.SENSOR.STABILITY).toBeGreaterThanOrEqual(0);
+      expect(AR_CONSTANTS.SENSOR.STABILITY).toBeLessThanOrEqual(1);
+    });
+
     test("smooths heading across north using the shortest path", () => {
       expect(smoothHeading(359, 1, 0.5)).toBeCloseTo(0, 10);
     });
